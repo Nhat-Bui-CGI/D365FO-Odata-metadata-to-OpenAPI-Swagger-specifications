@@ -8,8 +8,35 @@ specifications, for only the entities you choose.
 
 - [x] Converter core (`crates/d365-openapi-core`)
 - [x] Fetch metadata with Azure AD browser sign-in, local cache with configurable location (`crates/d365-fetch`)
-- [ ] egui desktop app (search/select entities, pick formats, preview, export, download progress)
+- [x] egui desktop app (`crates/d365-openapi-app`)
 - [ ] Verified imports (Swagger UI, Azure API Management, codegen) and installers
+
+## Desktop app
+
+![Main window](docs/screenshot-main.png)
+
+```sh
+cargo run --release -p d365-openapi-app
+```
+
+1. **Add** an environment: URL, tenant ID and the client ID of your app
+   registration (see *One-time Azure AD setup* below).
+2. **Sign in and download.** Your browser opens for sign-in, and the status bar
+   shows progress while the metadata downloads. The metadata is saved, so next
+   time the app opens it straight from disk. **Check for updates** downloads
+   again and only replaces the saved copy if D365FO changed.
+3. **Search** and tick the entities you want. Your selection is remembered per
+   environment.
+4. Pick **formats** (OpenAPI 3.0 / 3.1 / Swagger 2.0, JSON / YAML), an output
+   folder and a file name, then **Preview** or **Export**. You get one file per
+   format, e.g. `contoso-uat.openapi-3.0.json`.
+
+**Settings** lets you change where metadata is saved; existing files are moved.
+
+If the window doesn't open (some VMs or remote desktops without GPU drivers),
+start it with `D365_OPENAPI_RENDERER=glow`.
+
+![Sign-in in progress](docs/screenshot-sign-in.png)
 
 ## Converter core
 
