@@ -3,7 +3,6 @@
 
 mod app;
 mod jobs;
-mod model;
 
 fn main() -> eframe::Result {
     let options = eframe::NativeOptions {

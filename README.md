@@ -38,6 +38,25 @@ Vulkan / Metal), start it with `D365_OPENAPI_RENDERER=wgpu`.
 
 ![Sign-in in progress](docs/screenshot-sign-in.png)
 
+## Tauri version
+
+The same app is also available with a web-based UI built on Tauri
+(`crates/d365-openapi-tauri`). It shares all logic with the egui app; only the
+UI differs. On Windows it uses the built-in WebView2.
+
+![Tauri version](docs/screenshot-tauri.png)
+
+```sh
+cargo run --release -p d365-openapi-tauri
+```
+
+To build installers (MSI and NSIS) on Windows, install the Tauri CLI
+(`cargo install tauri-cli --version "^2"`) and run `cargo tauri build` in
+`crates/d365-openapi-tauri`.
+
+Linux needs the WebKitGTK development packages to build
+(`libwebkit2gtk-4.1-dev`, `libgtk-3-dev`).
+
 ## Converter core
 
 Parses `$metadata` (entity types, keys, properties, enums, complex types,
