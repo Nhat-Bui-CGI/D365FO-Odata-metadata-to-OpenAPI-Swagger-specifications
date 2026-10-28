@@ -33,8 +33,8 @@ cargo run --release -p d365-openapi-app
 
 **Settings** lets you change where metadata is saved; existing files are moved.
 
-If the window doesn't open (some VMs or remote desktops without GPU drivers),
-start it with `D365_OPENAPI_RENDERER=glow`.
+The app draws with OpenGL. To try the wgpu renderer instead (DirectX 12 /
+Vulkan / Metal), start it with `D365_OPENAPI_RENDERER=wgpu`.
 
 ![Sign-in in progress](docs/screenshot-sign-in.png)
 

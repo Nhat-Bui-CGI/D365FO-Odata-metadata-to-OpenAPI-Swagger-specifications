@@ -11,11 +11,11 @@ fn main() -> eframe::Result {
             .with_title("D365FO → OpenAPI")
             .with_inner_size([1200.0, 760.0])
             .with_min_inner_size([900.0, 560.0]),
-        // Set D365_OPENAPI_RENDERER=glow on machines where the default (wgpu) can't start,
-        // e.g. some remote desktops or VMs without GPU drivers.
+        // OpenGL (glow) by default: the wgpu renderer flickered on hover on some
+        // Windows GPUs/drivers. Set D365_OPENAPI_RENDERER=wgpu to try it anyway.
         renderer: match std::env::var("D365_OPENAPI_RENDERER").as_deref() {
-            Ok("glow") => eframe::Renderer::Glow,
-            _ => eframe::Renderer::default(),
+            Ok("wgpu") => eframe::Renderer::Wgpu,
+            _ => eframe::Renderer::Glow,
         },
         ..Default::default()
     };
