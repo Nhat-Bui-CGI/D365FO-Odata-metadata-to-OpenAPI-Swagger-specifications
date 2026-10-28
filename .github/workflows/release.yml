@@ -1,6 +1,6 @@
 name: Release binaries
 
-# Builds the Windows apps and attaches them to a GitHub release.
+# Builds the Windows and macOS apps and attaches them to a GitHub release.
 # Runs when a release is published, or manually for an existing release tag.
 on:
   release:
@@ -61,3 +61,72 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: gh release upload "$env:TAG" (Get-ChildItem dist).FullName --clobber
         shell: pwsh
+
+  macos:
+    runs-on: macos-latest
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || env.TAG }}
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Test
+        run: cargo test --workspace --exclude d365-openapi-tauri
+
+      - name: Build egui app (universal)
+        run: |
+          cargo build --release -p d365-openapi-app --target aarch64-apple-darwin
+          cargo build --release -p d365-openapi-app --target x86_64-apple-darwin
+
+      - name: Build Tauri app (universal dmg)
+        working-directory: crates/d365-openapi-tauri
+        run: |
+          cargo install tauri-cli --version "^2" --locked
+          cargo tauri build --target universal-apple-darwin --bundles dmg
+
+      - name: Package
+        run: |
+          v="${TAG#v}"
+          mkdir -p dist
+          app="pkg/D365FO OpenAPI (egui).app"
+          mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources" icon.iconset
+          lipo -create -output "$app/Contents/MacOS/d365-openapi-app" \
+            target/aarch64-apple-darwin/release/d365-openapi-app \
+            target/x86_64-apple-darwin/release/d365-openapi-app
+          for s in 16 32 128 256 512; do
+            sips -z $s $s crates/d365-openapi-tauri/icons/icon.png --out icon.iconset/icon_${s}x${s}.png >/dev/null
+          done
+          iconutil -c icns icon.iconset -o "$app/Contents/Resources/icon.icns"
+          cat > "$app/Contents/Info.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>CFBundleName</key><string>D365FO OpenAPI (egui)</string>
+            <key>CFBundleIdentifier</key><string>com.nhatbui.d365fo-openapi-egui</string>
+            <key>CFBundleExecutable</key><string>d365-openapi-app</string>
+            <key>CFBundleIconFile</key><string>icon</string>
+            <key>CFBundlePackageType</key><string>APPL</string>
+            <key>CFBundleShortVersionString</key><string>$v</string>
+            <key>CFBundleVersion</key><string>$v</string>
+            <key>NSHighResolutionCapable</key><true/>
+          </dict></plist>
+          PLIST
+          codesign --force --deep --sign - "$app"
+          ln -s /Applications pkg/Applications
+          hdiutil create -volname "D365FO OpenAPI (egui)" -srcfolder pkg -ov -format UDZO \
+            "dist/d365fo-openapi-egui-$v-macos-universal.dmg"
+          cp target/universal-apple-darwin/release/bundle/dmg/*.dmg \
+            "dist/d365fo-openapi-tauri-$v-macos-universal.dmg"
+          ls -l dist
+
+      - name: Upload to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$TAG" dist/* --clobber
