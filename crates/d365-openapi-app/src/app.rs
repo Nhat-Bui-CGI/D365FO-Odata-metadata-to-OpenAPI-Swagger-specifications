@@ -723,13 +723,13 @@ impl App {
                     ui.add(egui::TextEdit::singleline(&mut ed.env.url).hint_text("https://contoso-uat.sandbox.operations.dynamics.com").desired_width(340.0));
                     ui.end_row();
                     ui.label("Tenant ID");
-                    ui.add(egui::TextEdit::singleline(&mut ed.env.tenant).hint_text("Directory (tenant) ID or contoso.onmicrosoft.com").desired_width(340.0));
+                    ui.add(egui::TextEdit::singleline(&mut ed.env.tenant).hint_text("Optional: tenant ID or contoso.onmicrosoft.com").desired_width(340.0));
                     ui.end_row();
                     ui.label("Client ID");
-                    ui.add(egui::TextEdit::singleline(&mut ed.env.client_id).hint_text("Application (client) ID of your app registration").desired_width(340.0));
+                    ui.add(egui::TextEdit::singleline(&mut ed.env.client_id).hint_text("Optional: client ID of your app registration").desired_width(340.0));
                     ui.end_row();
                 });
-                ui.label(RichText::new("The app registration needs redirect URI http://localhost and the Dynamics ERP Odata.FullAccess permission. See the README.").small().weak());
+                ui.label(RichText::new("Leave Tenant and Client ID empty to sign in without an app registration (if your tenant allows it). If sign-in is blocked, use your own app registration with redirect URI http://localhost and the Dynamics ERP Odata.FullAccess permission. See the README.").small().weak());
                 if let Some(e) = &ed.error {
                     ui.colored_label(Color32::from_rgb(210, 80, 70), e);
                 }

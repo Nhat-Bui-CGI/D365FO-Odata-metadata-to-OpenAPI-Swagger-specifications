@@ -14,9 +14,13 @@ pub struct Environment {
     pub name: String,
     /// Normalised URL, e.g. `https://contoso-uat.sandbox.operations.dynamics.com`.
     pub url: String,
-    /// Tenant ID or domain.
+    /// Tenant ID or domain. Empty means `organizations` (the account's own tenant).
+    #[serde(default)]
     pub tenant: String,
-    /// Client ID of the app registration used for sign-in.
+    /// Client ID of the app registration used for sign-in. Empty means the
+    /// Azure CLI's public client ID, which needs no app registration if the
+    /// tenant allows it.
+    #[serde(default)]
     pub client_id: String,
 }
 
@@ -24,10 +28,25 @@ impl Environment {
     pub fn auth_config(&self) -> AuthConfig {
         AuthConfig {
             authority: DEFAULT_AUTHORITY.into(),
-            tenant: self.tenant.clone(),
-            client_id: self.client_id.clone(),
+            tenant: or_default(&self.tenant, DEFAULT_TENANT),
+            client_id: or_default(&self.client_id, AZURE_CLI_CLIENT_ID),
             environment_url: self.url.clone(),
         }
+    }
+}
+
+/// Microsoft's public client ID for the Azure CLI. It exists in every tenant and
+/// allows `http://localhost` redirects, so it can be used without an app registration.
+pub const AZURE_CLI_CLIENT_ID: &str = "04b07795-8ddb-461a-bbee-02f9e1bf7b46";
+/// Lets the signed-in work account pick its own tenant.
+pub const DEFAULT_TENANT: &str = "organizations";
+
+fn or_default(value: &str, default: &str) -> String {
+    let v = value.trim();
+    if v.is_empty() {
+        default.into()
+    } else {
+        v.into()
     }
 }
 
@@ -85,6 +104,19 @@ impl Settings {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn empty_ids_use_defaults() {
+        let env = Environment {
+            name: "x".into(),
+            url: "https://x".into(),
+            tenant: " ".into(),
+            client_id: String::new(),
+        };
+        let cfg = env.auth_config();
+        assert_eq!(cfg.tenant, DEFAULT_TENANT);
+        assert_eq!(cfg.client_id, AZURE_CLI_CLIENT_ID);
+    }
 
     #[test]
     fn round_trips() {

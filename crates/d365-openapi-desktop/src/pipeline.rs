@@ -193,12 +193,6 @@ pub fn base_options(env: Option<&Environment>, output: &crate::model::OutputOpti
 pub fn validate_environment(env: &Environment) -> Result<Environment, String> {
     let url = d365_fetch::normalize_environment_url(&env.url)
         .map_err(|_| "Enter a valid environment URL.".to_string())?;
-    if env.tenant.trim().is_empty() {
-        return Err("Enter the tenant ID.".into());
-    }
-    if env.client_id.trim().is_empty() {
-        return Err("Enter the client ID of your app registration.".into());
-    }
     let name = if env.name.trim().is_empty() {
         url.split("://").nth(1).unwrap_or(&url).to_string()
     } else {
