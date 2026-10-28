@@ -1,0 +1,60 @@
+name: Release binaries
+
+# Builds the Windows apps and attaches them to a GitHub release.
+# Runs when a release is published, or manually for an existing release tag.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to attach binaries to (e.g. 1.0.0)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Test
+        run: cargo test --workspace --exclude d365-openapi-tauri
+
+      - name: Build egui app
+        run: cargo build --release -p d365-openapi-app
+
+      - name: Build Tauri app and installers
+        working-directory: crates/d365-openapi-tauri
+        run: |
+          cargo install tauri-cli --version "^2" --locked
+          cargo tauri build
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $v = "$env:TAG".TrimStart("v")
+          New-Item -ItemType Directory -Force dist, pkg/egui, pkg/tauri | Out-Null
+          Copy-Item target/release/d365-openapi-app.exe, README.md, CHANGELOG.md pkg/egui/
+          Copy-Item target/release/d365-openapi-tauri.exe, README.md, CHANGELOG.md pkg/tauri/
+          Compress-Archive pkg/egui/* "dist/d365fo-openapi-egui-$v-windows-x64.zip"
+          Compress-Archive pkg/tauri/* "dist/d365fo-openapi-tauri-$v-windows-x64.zip"
+          Copy-Item target/release/bundle/msi/*.msi dist/
+          Copy-Item target/release/bundle/nsis/*.exe dist/
+          Get-ChildItem dist
+
+      - name: Upload to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$env:TAG" (Get-ChildItem dist).FullName --clobber
+        shell: pwsh

@@ -116,6 +116,18 @@ cargo test
 **Linux** needs the WebKitGTK packages to build the Tauri app
 (`libwebkit2gtk-4.1-dev`, `libgtk-3-dev`).
 
+### Releases
+
+Publishing a GitHub release runs `.github/workflows/release.yml`, which builds
+both apps on Windows and attaches to the release:
+
+- `d365fo-openapi-egui-<version>-windows-x64.zip`
+- `d365fo-openapi-tauri-<version>-windows-x64.zip`
+- the Tauri MSI and NSIS installers
+
+To attach binaries to a release that already exists, run the workflow manually
+(**Actions** → **Release binaries** → **Run workflow**) and enter its tag.
+
 ### Troubleshooting
 
 - **The egui window flickers or does not open.** It draws with OpenGL by
