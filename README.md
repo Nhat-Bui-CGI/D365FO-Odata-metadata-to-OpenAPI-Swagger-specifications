@@ -59,8 +59,8 @@ Sign-in needs an app registration in your tenant:
    applications** → custom redirect URI `http://localhost`.
    Set **Allow public client flows** to **Yes**.
 3. **API permissions** → **Add a permission** → **APIs my organization uses** →
-   **Microsoft Dynamics ERP** → Delegated → `user_impersonation`
-   (or `Odata.FullAccess`). Grant admin consent if your tenant requires it.
+   **Microsoft Dynamics ERP** → Delegated → `Odata.FullAccess`.
+   Grant admin consent if your tenant requires it.
 4. Copy the **Application (client) ID** and **Directory (tenant) ID**.
 
 Your D365FO user needs normal access to the data entities; no extra D365FO
