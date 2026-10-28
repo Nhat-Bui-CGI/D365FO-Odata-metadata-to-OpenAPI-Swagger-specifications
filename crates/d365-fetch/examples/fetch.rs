@@ -1,28 +1,29 @@
 //! Signs in through the browser, downloads $metadata and stores it in the cache.
 //!
-//! cargo run --example fetch -- <environment-url> <tenant> <client-id>
+//! cargo run --example fetch -- <environment-url> [tenant] [client-id]
 
 use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 
-use d365_fetch::auth::{AuthConfig, DEFAULT_AUTHORITY};
 use d365_fetch::{
-    Cache, Progress, Settings, download_metadata, normalize_environment_url, sign_in_interactive,
+    Cache, Environment, Progress, Settings, download_metadata, normalize_environment_url,
+    sign_in_interactive,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let [env, tenant, client_id] = args.as_slice() else {
-        eprintln!("usage: fetch <environment-url> <tenant> <client-id>");
+    let Some(env) = args.first() else {
+        eprintln!("usage: fetch <environment-url> [tenant] [client-id]");
         std::process::exit(2);
     };
     let env = normalize_environment_url(env)?;
-    let cfg = AuthConfig {
-        authority: DEFAULT_AUTHORITY.into(),
-        tenant: tenant.clone(),
-        client_id: client_id.clone(),
-        environment_url: env.clone(),
-    };
+    let cfg = Environment {
+        name: String::new(),
+        url: env.clone(),
+        tenant: args.get(1).cloned().unwrap_or_default(),
+        client_id: args.get(2).cloned().unwrap_or_default(),
+    }
+    .auth_config();
     let cancel = AtomicBool::new(false);
     let token = sign_in_interactive(&cfg, Duration::from_secs(300), &cancel, |url| {
         eprintln!("Opening browser. If it doesn't open, visit:\n{url}");

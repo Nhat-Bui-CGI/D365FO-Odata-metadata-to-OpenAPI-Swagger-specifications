@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>D365FO → OpenAPI</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>D365FO → OpenAPI</h1>
+    <button id="open-settings" class="ghost">⚙ Settings</button>
+  </header>
+
+  <main>
+    <aside id="env-panel">
+      <h2>Environments</h2>
+      <ul id="env-list"></ul>
+      <p id="env-empty" class="muted">Add your D365FO environment to get started.</p>
+      <div class="row">
+        <button id="env-add">+ Add</button>
+        <button id="env-edit" disabled>Edit</button>
+        <button id="env-remove" disabled>Remove</button>
+      </div>
+      <section id="env-details" hidden>
+        <p id="env-url" class="muted small"></p>
+        <h3>Saved metadata</h3>
+        <dl id="cache-info"></dl>
+        <p id="cache-none" class="muted">Not downloaded yet.</p>
+        <button id="download" class="primary">⬇ Sign in and download</button>
+        <p id="signed-in" class="ok small" hidden>✔ Signed in</p>
+      </section>
+    </aside>
+
+    <section id="entity-panel">
+      <div id="entities-empty" class="placeholder">Add an environment on the left.</div>
+      <div id="entities" hidden>
+        <div class="row baseline">
+          <h2>Entities</h2>
+          <span id="sel-count" class="muted"></span>
+        </div>
+        <input id="search" type="search" placeholder="🔍 Search entities, e.g. sales order" autocomplete="off">
+        <div class="row">
+          <button id="select-shown">Select all shown</button>
+          <button id="clear-shown">Clear shown</button>
+          <label class="toggle"><input id="selected-only" type="checkbox"> Selected only</label>
+        </div>
+        <ul id="entity-list"></ul>
+        <p id="no-match" class="muted" hidden>No entities match.</p>
+      </div>
+    </section>
+
+    <aside id="output-panel">
+      <h2>Output</h2>
+      <h3>Formats</h3>
+      <label><input type="checkbox" data-opt="openapi30"> OpenAPI 3.0</label>
+      <label><input type="checkbox" data-opt="openapi31"> OpenAPI 3.1</label>
+      <label><input type="checkbox" data-opt="swagger2"> Swagger 2.0</label>
+      <div class="row">
+        <label><input type="checkbox" data-opt="json"> JSON</label>
+        <label><input type="checkbox" data-opt="yaml"> YAML</label>
+      </div>
+      <h3>Include</h3>
+      <label><input type="checkbox" data-opt="include_operations"> Actions and functions</label>
+      <label title="Only links between entities that are both selected"><input type="checkbox" data-opt="include_navigation"> Navigation properties</label>
+      <label><input type="checkbox" data-opt="include_server_url"> Environment URL as server</label>
+      <h3>Save to</h3>
+      <p id="out-dir" class="small path">No folder chosen</p>
+      <button id="choose-dir">📁 Choose folder…</button>
+      <label class="field">File name <input id="file-name" type="text"></label>
+      <div class="row">
+        <button id="preview">Preview</button>
+        <button id="export" class="primary">Export</button>
+      </div>
+      <p id="out-problem" class="muted small"></p>
+      <ul id="out-files" class="muted small"></ul>
+    </aside>
+  </main>
+
+  <footer id="status">
+    <div class="row status-line">
+      <span id="spinner" class="spinner" hidden></span>
+      <span id="status-text" class="muted">Ready</span>
+      <span id="elapsed" class="muted"></span>
+      <span class="spacer"></span>
+      <button id="copy-link" hidden>Copy sign-in link</button>
+      <button id="cancel" hidden>Cancel</button>
+    </div>
+    <div id="progress-wrap" hidden>
+      <div class="progress"><div id="progress-bar"></div></div>
+    </div>
+  </footer>
+
+  <dialog id="env-dialog">
+    <form method="dialog" id="env-form">
+      <h2 id="env-dialog-title">Add environment</h2>
+      <label class="field">Name <input name="name" placeholder="e.g. UAT"></label>
+      <label class="field">Environment URL <input name="url" placeholder="https://contoso-uat.sandbox.operations.dynamics.com" required></label>
+      <label class="field">Tenant ID <input name="tenant" placeholder="Optional: tenant ID or contoso.onmicrosoft.com"></label>
+      <label class="field">Client ID <input name="client_id" placeholder="Optional: client ID of your app registration"></label>
+      <p class="muted small">Leave Tenant and Client ID empty to sign in without an app registration (if your tenant allows it). If sign-in is blocked, use your own app registration with redirect URI http://localhost and the Dynamics ERP Odata.FullAccess permission. See the README.</p>
+      <p id="env-error" class="error"></p>
+      <div class="row">
+        <button value="save" class="primary">Save</button>
+        <button value="cancel" formnovalidate>Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="confirm-dialog">
+    <form method="dialog">
+      <h2 id="confirm-title"></h2>
+      <p>Its saved metadata and entity selection are deleted too.</p>
+      <div class="row">
+        <button value="yes" class="danger">Remove</button>
+        <button value="no">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="settings-dialog">
+    <form method="dialog" id="settings-form">
+      <h2>Settings</h2>
+      <h3>Metadata folder</h3>
+      <p class="muted small">Where downloaded metadata is saved. Existing files are moved when you change it.</p>
+      <div class="row">
+        <input id="cache-dir" type="text" class="grow">
+        <button type="button" id="browse-cache">Browse…</button>
+      </div>
+      <button type="button" id="reset-cache" class="ghost small">Reset to default</button>
+      <p id="settings-path" class="muted small"></p>
+      <p id="settings-error" class="error"></p>
+      <div class="row">
+        <button value="save" class="primary">Save</button>
+        <button value="cancel">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="preview-dialog">
+    <div class="row baseline">
+      <h2 id="preview-title">Preview</h2>
+      <span class="spacer"></span>
+      <button id="copy-preview">Copy</button>
+      <button id="close-preview">Close</button>
+    </div>
+    <pre id="preview-text"></pre>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>

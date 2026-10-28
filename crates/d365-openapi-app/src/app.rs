@@ -5,12 +5,15 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::time::{Duration, Instant};
 
-use d365_fetch::{Cache, Environment, Progress, Settings, Token, normalize_environment_url};
+use d365_fetch::{Cache, Environment, Progress, Settings, Token};
 use d365_openapi_core::{Metadata, Options, SpecVersion};
 use eframe::egui::{self, Color32, RichText};
 
-use crate::jobs::{self, ExportJob, Msg};
-use crate::model::{AppState, EntityRow, entity_rows, filter_rows, format_bytes, format_time};
+use crate::jobs::{self, Event, Msg};
+use d365_openapi_desktop::model::{
+    AppState, EntityRow, entity_rows, filter_rows, format_bytes, format_time,
+};
+use d365_openapi_desktop::pipeline::{self, ExportJob};
 
 struct Busy {
     status: String,
@@ -147,12 +150,12 @@ impl App {
     fn drain_messages(&mut self) {
         while let Ok(msg) = self.rx.try_recv() {
             match msg {
-                Msg::Status(s) => {
+                Msg::Event(Event::Status(s)) => {
                     if let Some(b) = &mut self.busy {
                         b.status = s;
                     }
                 }
-                Msg::Progress(p) => {
+                Msg::Event(Event::Progress(p)) => {
                     if let Some(b) = &mut self.busy {
                         b.progress = Some(p);
                         b.sign_in_url = None;
@@ -165,15 +168,15 @@ impl App {
                         };
                     }
                 }
-                Msg::SignInUrl(url) => {
+                Msg::Event(Event::SignInUrl(url)) => {
                     if let Some(b) = &mut self.busy {
                         b.sign_in_url = Some(url);
                     }
                 }
-                Msg::Token { env_url, token } => {
+                Msg::Event(Event::Token { env_url, token }) => {
                     self.tokens.insert(env_url, token);
                 }
-                Msg::Loaded { env_url, metadata } => {
+                Msg::Event(Event::Loaded { env_url, metadata }) => {
                     let rows = entity_rows(&metadata);
                     // Drop selections that no longer exist in the metadata.
                     if let Some(sel) = self.state.selections.get_mut(&env_url) {
@@ -216,7 +219,9 @@ impl App {
         if self.cache.entry(&env.url).is_some() {
             let cache = self.cache.clone();
             let url = env.url.clone();
-            self.start("Loading", ctx, move |c| jobs::load_cached(c, &cache, &url));
+            self.start("Loading", ctx, move |c| {
+                pipeline::load_cached(&|e| c.emit(e), &cache, &url)
+            });
         } else {
             self.last_result = None;
         }
@@ -233,25 +238,13 @@ impl App {
         } else {
             "Downloading"
         };
-        self.start(label, ctx, move |c| jobs::download(c, &cache, &env, token));
+        self.start(label, ctx, move |c| {
+            pipeline::download(&|e| c.emit(e), &c.cancel, &cache, &env, token)
+        });
     }
 
     fn base_options(&self) -> Options {
-        let o = &self.state.output;
-        Options {
-            version: SpecVersion::OpenApi30,
-            title: match self.current_environment() {
-                Some(env) => format!("D365FO OData API ({})", env.name),
-                None => Options::default().title,
-            },
-            server_url: if o.include_server_url {
-                self.current_environment().map(|e| e.url.clone())
-            } else {
-                None
-            },
-            include_operations: o.include_operations,
-            include_navigation: o.include_navigation,
-        }
+        pipeline::base_options(self.current_environment(), &self.state.output)
     }
 
     fn selected(&self) -> Vec<String> {
@@ -277,7 +270,9 @@ impl App {
             files: self.state.output.planned_files(&dir),
             base_options: self.base_options(),
         };
-        self.start("Exporting", ctx, move |c| jobs::export(c, job));
+        self.start("Exporting", ctx, move |c| {
+            pipeline::export(&|e| c.emit(e), job)
+        });
     }
 
     fn show_preview(&mut self) {
@@ -288,25 +283,12 @@ impl App {
         else {
             return;
         };
-        let sets = self.selected();
-        let sets: Vec<&str> = sets.iter().map(String::as_str).collect();
         let opts = Options {
             version,
             ..self.base_options()
         };
-        let result = d365_openapi_core::generate(&l.metadata, &sets, &opts)
-            .and_then(|d| d365_openapi_core::render(&d, format));
-        match result {
-            Ok(mut text) => {
-                const LIMIT: usize = 400_000;
-                if text.len() > LIMIT {
-                    let cut = (0..=LIMIT)
-                        .rev()
-                        .find(|i| text.is_char_boundary(*i))
-                        .unwrap_or(0);
-                    text.truncate(cut);
-                    text.push_str("\n\n… preview truncated; the exported file is complete.");
-                }
+        match pipeline::preview(&l.metadata, &self.selected(), &opts, format, 400_000) {
+            Ok(text) => {
                 self.preview = Some(Preview {
                     title: format!(
                         "Preview: {} {}",
@@ -316,7 +298,7 @@ impl App {
                     text,
                 });
             }
-            Err(e) => self.last_result = Some(Err(e.to_string())),
+            Err(e) => self.last_result = Some(Err(e)),
         }
     }
 
@@ -741,13 +723,13 @@ impl App {
                     ui.add(egui::TextEdit::singleline(&mut ed.env.url).hint_text("https://contoso-uat.sandbox.operations.dynamics.com").desired_width(340.0));
                     ui.end_row();
                     ui.label("Tenant ID");
-                    ui.add(egui::TextEdit::singleline(&mut ed.env.tenant).hint_text("Directory (tenant) ID or contoso.onmicrosoft.com").desired_width(340.0));
+                    ui.add(egui::TextEdit::singleline(&mut ed.env.tenant).hint_text("Optional: tenant ID or contoso.onmicrosoft.com").desired_width(340.0));
                     ui.end_row();
                     ui.label("Client ID");
-                    ui.add(egui::TextEdit::singleline(&mut ed.env.client_id).hint_text("Application (client) ID of your app registration").desired_width(340.0));
+                    ui.add(egui::TextEdit::singleline(&mut ed.env.client_id).hint_text("Optional: client ID of your app registration").desired_width(340.0));
                     ui.end_row();
                 });
-                ui.label(RichText::new("The app registration needs redirect URI http://localhost and the Dynamics ERP Odata.FullAccess permission. See the README.").small().weak());
+                ui.label(RichText::new("Leave Tenant and Client ID empty to sign in without an app registration (if your tenant allows it). If sign-in is blocked, use your own app registration with redirect URI http://localhost and the Dynamics ERP Odata.FullAccess permission. See the README.").small().weak());
                 if let Some(e) = &ed.error {
                     ui.colored_label(Color32::from_rgb(210, 80, 70), e);
                 }
@@ -757,7 +739,7 @@ impl App {
                 });
             });
         if save {
-            match validate_environment(&ed.env) {
+            match pipeline::validate_environment(&ed.env) {
                 Ok(env) => {
                     let index = ed.index;
                     let new_index = match index {
@@ -897,28 +879,6 @@ impl App {
             self.preview = None;
         }
     }
-}
-
-fn validate_environment(env: &Environment) -> Result<Environment, String> {
-    let url = normalize_environment_url(&env.url)
-        .map_err(|_| "Enter a valid environment URL.".to_string())?;
-    if env.tenant.trim().is_empty() {
-        return Err("Enter the tenant ID.".into());
-    }
-    if env.client_id.trim().is_empty() {
-        return Err("Enter the client ID of your app registration.".into());
-    }
-    let name = if env.name.trim().is_empty() {
-        url.split("://").nth(1).unwrap_or(&url).to_string()
-    } else {
-        env.name.trim().to_string()
-    };
-    Ok(Environment {
-        name,
-        url,
-        tenant: env.tenant.trim().into(),
-        client_id: env.client_id.trim().into(),
-    })
 }
 
 impl eframe::App for App {
