@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<edmx:Edmx Version="4.0" xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx">
+  <edmx:DataServices>
+    <Schema Namespace="Microsoft.Dynamics.DataEntities" xmlns="http://docs.oasis-open.org/odata/ns/edm">
+      <EntityType Name="CustomerV3">
+        <Key>
+          <PropertyRef Name="dataAreaId" />
+          <PropertyRef Name="CustomerAccount" />
+        </Key>
+        <Property Name="dataAreaId" Type="Edm.String" Nullable="false" MaxLength="4" />
+        <Property Name="CustomerAccount" Type="Edm.String" Nullable="false" MaxLength="20" />
+        <Property Name="OrganizationName" Type="Edm.String" MaxLength="100" />
+        <Property Name="CreditLimit" Type="Edm.Decimal" Nullable="false" Precision="32" Scale="6" />
+        <Property Name="IsOneTimeCustomer" Type="Microsoft.Dynamics.DataEntities.NoYes" />
+        <Property Name="PartyType" Type="Microsoft.Dynamics.DataEntities.DirPartyBaseType" Nullable="false" />
+        <Property Name="CreatedDateTime" Type="Edm.DateTimeOffset" Nullable="false" />
+        <Property Name="PartyNumber" Type="Edm.String" MaxLength="40">
+          <Annotation Term="Microsoft.Dynamics.OData.Core.V1.AllowEdit" Bool="false" />
+        </Property>
+        <NavigationProperty Name="SalesOrderHeaders" Type="Collection(Microsoft.Dynamics.DataEntities.SalesOrderHeaderV2)" Partner="Customer" />
+        <NavigationProperty Name="CustomerGroup" Type="Microsoft.Dynamics.DataEntities.CustomerGroup" />
+      </EntityType>
+      <EntityType Name="SalesOrderHeaderV2">
+        <Key>
+          <PropertyRef Name="dataAreaId" />
+          <PropertyRef Name="SalesOrderNumber" />
+        </Key>
+        <Property Name="dataAreaId" Type="Edm.String" Nullable="false" MaxLength="4" />
+        <Property Name="SalesOrderNumber" Type="Edm.String" Nullable="false" MaxLength="20" />
+        <Property Name="OrderingCustomerAccountNumber" Type="Edm.String" MaxLength="20" />
+        <Property Name="RequestedShippingDate" Type="Edm.Date" />
+        <Property Name="DeliveryAddress" Type="Microsoft.Dynamics.DataEntities.Address" />
+        <Property Name="Tags" Type="Collection(Edm.String)" />
+        <NavigationProperty Name="Customer" Type="Microsoft.Dynamics.DataEntities.CustomerV3" Partner="SalesOrderHeaders" />
+        <NavigationProperty Name="SalesOrderLines" Type="Collection(Microsoft.Dynamics.DataEntities.SalesOrderLine)" />
+      </EntityType>
+      <EntityType Name="SalesOrderLine">
+        <Key><PropertyRef Name="InventoryLotId" /></Key>
+        <Property Name="InventoryLotId" Type="Edm.String" Nullable="false" MaxLength="20" />
+        <Property Name="LineNumber" Type="Edm.Decimal" />
+        <Property Name="Quantity" Type="Edm.Decimal" />
+      </EntityType>
+      <EntityType Name="CustomerGroup">
+        <Key><PropertyRef Name="dataAreaId" /><PropertyRef Name="CustomerGroupId" /></Key>
+        <Property Name="dataAreaId" Type="Edm.String" Nullable="false" MaxLength="4" />
+        <Property Name="CustomerGroupId" Type="Edm.String" Nullable="false" MaxLength="10" />
+        <Property Name="Description" Type="Edm.String" MaxLength="60" />
+      </EntityType>
+      <EntityType Name="ExchangeRate">
+        <Key><PropertyRef Name="RecId" /></Key>
+        <Property Name="RecId" Type="Edm.Int64" Nullable="false" />
+        <Property Name="Rate" Type="Edm.Double" />
+        <Property Name="RateTypeId" Type="Edm.Guid" />
+      </EntityType>
+      <ComplexType Name="Address">
+        <Property Name="Street" Type="Edm.String" />
+        <Property Name="City" Type="Edm.String" />
+        <Property Name="CountryRegionId" Type="Edm.String" MaxLength="10" />
+      </ComplexType>
+      <EnumType Name="NoYes">
+        <Member Name="No" Value="0" />
+        <Member Name="Yes" Value="1" />
+      </EnumType>
+      <EnumType Name="DirPartyBaseType">
+        <Member Name="None" Value="0" />
+        <Member Name="Person" Value="1" />
+        <Member Name="Organization" Value="2" />
+      </EnumType>
+      <Action Name="confirmSalesOrder" IsBound="true">
+        <Parameter Name="_this" Type="Microsoft.Dynamics.DataEntities.SalesOrderHeaderV2" />
+        <Parameter Name="_comment" Type="Edm.String" />
+        <ReturnType Type="Edm.String" />
+      </Action>
+      <Action Name="getOpenOrderCount" IsBound="true">
+        <Parameter Name="_this" Type="Collection(Microsoft.Dynamics.DataEntities.SalesOrderHeaderV2)" />
+        <Parameter Name="_customer" Type="Edm.String" />
+        <ReturnType Type="Edm.Int32" />
+      </Action>
+      <EntityContainer Name="Resources">
+        <EntitySet Name="CustomersV3" EntityType="Microsoft.Dynamics.DataEntities.CustomerV3">
+          <NavigationPropertyBinding Path="SalesOrderHeaders" Target="SalesOrderHeadersV2" />
+        </EntitySet>
+        <EntitySet Name="SalesOrderHeadersV2" EntityType="Microsoft.Dynamics.DataEntities.SalesOrderHeaderV2" />
+        <EntitySet Name="SalesOrderLines" EntityType="Microsoft.Dynamics.DataEntities.SalesOrderLine" />
+        <EntitySet Name="CustomerGroups" EntityType="Microsoft.Dynamics.DataEntities.CustomerGroup" />
+        <EntitySet Name="ExchangeRates" EntityType="Microsoft.Dynamics.DataEntities.ExchangeRate" />
+      </EntityContainer>
+    </Schema>
+  </edmx:DataServices>
+</edmx:Edmx>

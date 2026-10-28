@@ -1,0 +1,11 @@
+[package]
+name = "d365-openapi-core"
+version = "0.1.0"
+edition = "2024"
+description = "Convert Dynamics 365 Finance & Operations OData $metadata into OpenAPI / Swagger specifications"
+
+[dependencies]
+quick-xml = "0.42.0"
+serde_json = { version = "1.0.154", features = ["preserve_order"] }
+serde_yaml = "0.9.34"
+thiserror = "2.0.21"
