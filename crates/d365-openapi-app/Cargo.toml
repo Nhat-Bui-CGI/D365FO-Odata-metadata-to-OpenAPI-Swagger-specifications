@@ -1,11 +1,11 @@
 [package]
 name = "d365-openapi-app"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2024"
 
 [dependencies]
-d365-fetch = { version = "0.1.0", path = "../d365-fetch" }
-d365-openapi-core = { version = "0.1.0", path = "../d365-openapi-core" }
-d365-openapi-desktop = { version = "0.1.0", path = "../d365-openapi-desktop" }
+d365-fetch = { version = "1.0.0", path = "../d365-fetch" }
+d365-openapi-core = { version = "1.0.0", path = "../d365-openapi-core" }
+d365-openapi-desktop = { version = "1.0.0", path = "../d365-openapi-desktop" }
 eframe = { version = "0.37.0", features = ["glow"] }
 rfd = { version = "0.17.2", default-features = false, features = ["xdg-portal"] }

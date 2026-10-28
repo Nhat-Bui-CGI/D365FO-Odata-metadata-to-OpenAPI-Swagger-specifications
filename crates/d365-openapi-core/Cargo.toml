@@ -1,6 +1,6 @@
 [package]
 name = "d365-openapi-core"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2024"
 description = "Convert Dynamics 365 Finance & Operations OData $metadata into OpenAPI / Swagger specifications"
 
