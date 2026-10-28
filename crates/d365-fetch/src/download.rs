@@ -84,12 +84,20 @@ pub(crate) mod tests {
                 let (mut s, _) = listener.accept().unwrap();
                 let mut r = BufReader::new(s.try_clone().unwrap());
                 let mut line = String::new();
+                let mut request_len = 0;
                 while r.read_line(&mut line).unwrap() > 0 && line != "\r\n" {
-                    if line.to_lowercase().starts_with("authorization:") {
+                    let lower = line.to_lowercase();
+                    if lower.starts_with("authorization:") {
                         auth.push(line.trim().to_string());
+                    }
+                    if let Some(v) = lower.strip_prefix("content-length:") {
+                        request_len = v.trim().parse().unwrap();
                     }
                     line.clear();
                 }
+                // Drain the request body: on Windows, closing a socket with
+                // unread data resets the connection before the client reads.
+                std::io::Read::read_exact(&mut r, &mut vec![0; request_len]).unwrap();
                 write!(
                     s,
                     "HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
