@@ -119,11 +119,15 @@ cargo test
 ### Releases
 
 Publishing a GitHub release runs `.github/workflows/release.yml`, which builds
-both apps on Windows and attaches to the release:
+both apps on Windows and macOS and attaches to the release:
 
 - `d365fo-openapi-egui-<version>-windows-x64.zip`
 - `d365fo-openapi-tauri-<version>-windows-x64.zip`
 - the Tauri MSI and NSIS installers
+- `d365fo-openapi-egui-<version>-macos-universal.dmg`
+- `d365fo-openapi-tauri-<version>-macos-universal.dmg`
+
+The macOS apps run on Apple Silicon and Intel Macs.
 
 To attach binaries to a release that already exists, run the workflow manually
 (**Actions** → **Release binaries** → **Run workflow**) and enter its tag.
@@ -136,6 +140,10 @@ To attach binaries to a release that already exists, run the workflow manually
 - **The Tauri app does not start on Windows.** It needs the WebView2 runtime,
   which is preinstalled on Windows 10 and 11. A build made with the GNU
   toolchain also needs `WebView2Loader.dll` next to the exe.
+- **macOS says the app "is damaged" or "cannot be opened".** The apps are not
+  notarized by Apple. Drag the app to Applications, then run
+  `xattr -dr com.apple.quarantine "/Applications/<app name>.app"`, or
+  right-click the app and select **Open**.
 - **Sign-in fails with `AADSTS…`.** Your tenant blocks sign-in without an app
   registration. Create one (see *Signing in*) and enter its IDs.
 
