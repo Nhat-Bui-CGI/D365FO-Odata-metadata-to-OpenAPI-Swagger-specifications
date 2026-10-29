@@ -5,18 +5,20 @@ Dynamics 365 Finance & Operations environment into **OpenAPI 3.0**,
 **OpenAPI 3.1** or **Swagger 2.0** specifications (JSON or YAML), for only the
 entities you choose.
 
-It comes with two front ends that share all logic, settings and saved
+It comes with three front ends that share all logic, settings and saved
 metadata. Use whichever you prefer:
 
-| | egui app | Tauri app |
-|---|---|---|
-| Crate | `crates/d365-openapi-app` | `crates/d365-openapi-tauri` |
-| UI | Native immediate-mode UI (OpenGL) | Web UI in the system WebView (WebView2 on Windows) |
-| Look | Dark theme | Follows the system light/dark theme |
+| | egui app | Tauri app | Slint app |
+|---|---|---|---|
+| Crate | `crates/d365-openapi-app` | `crates/d365-openapi-tauri` | `crates/d365-openapi-slint` |
+| UI | Native immediate-mode UI (OpenGL) | Web UI in the system WebView (WebView2 on Windows) | Native declarative UI (`.slint` markup, OpenGL) |
+| Look | Dark theme | Follows the system light/dark theme | Fluent style, follows the system light/dark theme |
 
 ![egui app](docs/screenshot-main.png)
 
 ![Tauri app](docs/screenshot-tauri.png)
+
+![Slint app](docs/screenshot-slint.png)
 
 ## Status
 
@@ -24,6 +26,7 @@ metadata. Use whichever you prefer:
 - [x] Browser sign-in, metadata download, local cache, settings (`crates/d365-fetch`)
 - [x] egui desktop app
 - [x] Tauri desktop app
+- [x] Slint desktop app
 - [ ] Verified imports (Swagger UI, Azure API Management, codegen) and installers
 
 ## Signing in
@@ -105,6 +108,9 @@ cargo run --release -p d365-openapi-app
 # Tauri app
 cargo run --release -p d365-openapi-tauri
 
+# Slint app
+cargo run --release -p d365-openapi-slint
+
 # all tests
 cargo test
 ```
@@ -119,13 +125,11 @@ cargo test
 ### Releases
 
 Publishing a GitHub release runs `.github/workflows/release.yml`, which builds
-both apps on Windows and macOS and attaches to the release:
+all three apps on Windows and macOS and attaches to the release:
 
-- `d365fo-openapi-egui-<version>-windows-x64.zip`
-- `d365fo-openapi-tauri-<version>-windows-x64.zip`
+- `d365fo-openapi-{egui,tauri,slint}-<version>-windows-x64.zip`
 - the Tauri MSI and NSIS installers
-- `d365fo-openapi-egui-<version>-macos-universal.dmg`
-- `d365fo-openapi-tauri-<version>-macos-universal.dmg`
+- `d365fo-openapi-{egui,tauri,slint}-<version>-macos-universal.dmg`
 
 The macOS apps run on Apple Silicon and Intel Macs.
 
@@ -156,6 +160,7 @@ To attach binaries to a release that already exists, run the workflow manually
 | `d365-openapi-desktop` | Shared app logic: saved UI state, search, load / download / export pipelines |
 | `d365-openapi-app` | egui front end |
 | `d365-openapi-tauri` | Tauri front end (`ui/` holds plain HTML, CSS and JS, with no npm build) |
+| `d365-openapi-slint` | Slint front end (`ui/app.slint` holds the layout) |
 
 ### What the generated spec contains
 

@@ -1,0 +1,524 @@
+import { Button, CheckBox, LineEdit, ListView, TextEdit, ProgressIndicator, Spinner, Palette } from "std-widgets.slint";
+
+export struct EnvItem {
+    name: string,
+    url: string,
+}
+
+export struct EntityItem {
+    set: string,
+    type-name: string,
+    checked: bool,
+    // Index into the full (unfiltered) list.
+    index: int,
+}
+
+component SectionTitle inherits Text {
+    font-size: 11px;
+    font-weight: 700;
+    color: Palette.foreground.transparentize(0.35);
+}
+
+component Muted inherits Text {
+    font-size: 12px;
+    color: Palette.foreground.transparentize(0.4);
+    wrap: word-wrap;
+}
+
+// A dimmed full-window backdrop with a centred card.
+component Dialog inherits Rectangle {
+    in property <length> card-width: 460px;
+    in property <string> title;
+    background: #00000080;
+    // Swallow clicks so the window behind does not react.
+    TouchArea { }
+    Rectangle {
+        width: min(root.card-width, root.width - 32px);
+        height: min(layout.preferred-height, root.height - 32px);
+        background: Palette.background;
+        border-radius: 8px;
+        border-width: 1px;
+        border-color: Palette.border;
+        layout := VerticalLayout {
+            padding: 16px;
+            spacing: 10px;
+            Text {
+                text: root.title;
+                font-size: 16px;
+                font-weight: 700;
+            }
+            @children
+        }
+    }
+}
+
+export component AppWindow inherits Window {
+    title: "D365 → OpenAPI";
+    icon: @image-url("../../d365-openapi-tauri/icons/128x128.png");
+    preferred-width: 1200px;
+    preferred-height: 760px;
+    min-width: 900px;
+    min-height: 560px;
+    background: Palette.background;
+
+    // ----- environments -----
+    in property <[EnvItem]> environments;
+    in property <int> current-env: -1;
+    in property <string> env-info;
+    in property <bool> has-saved;
+    callback select-env(int);
+    callback add-env();
+    callback edit-env();
+    callback remove-env();
+    callback download();
+
+    // ----- job status -----
+    in property <bool> busy;
+    in property <string> status-text: "Ready.";
+    in property <bool> status-error;
+    // 0..1, or negative when the size is unknown.
+    in property <float> progress: -1;
+    in property <bool> show-progress;
+    in property <string> sign-in-url;
+    callback cancel();
+    callback copy-sign-in-link();
+
+    // ----- entities -----
+    in property <[EntityItem]> entities;
+    in property <string> entity-count;
+    in property <bool> loaded;
+    in-out property <string> search;
+    in-out property <bool> selected-only;
+    callback search-changed();
+    callback toggle-entity(int, bool);
+    callback select-shown();
+    callback clear-selection();
+
+    // ----- output -----
+    in-out property <bool> swagger2;
+    in-out property <bool> openapi30;
+    in-out property <bool> openapi31;
+    in-out property <bool> json;
+    in-out property <bool> yaml;
+    in-out property <bool> include-operations;
+    in-out property <bool> include-navigation;
+    in-out property <bool> include-server-url;
+    in-out property <string> output-dir;
+    in-out property <string> file-name;
+    in property <string> planned-files;
+    callback output-changed();
+    callback browse-output();
+    callback preview();
+    callback export();
+
+    // ----- dialogs -----
+    in-out property <bool> show-editor;
+    in property <bool> editing-existing;
+    in-out property <string> editor-name;
+    in-out property <string> editor-url;
+    in-out property <string> editor-tenant;
+    in-out property <string> editor-client;
+    in property <string> editor-error;
+    callback save-env();
+
+    in-out property <bool> show-preview;
+    in property <string> preview-text;
+
+    in-out property <bool> show-settings;
+    in-out property <string> cache-dir;
+    in property <string> default-cache-dir;
+    in property <string> settings-path;
+    in property <string> settings-error;
+    callback browse-cache-dir();
+    callback save-cache-dir();
+    callback open-settings();
+
+    VerticalLayout {
+        HorizontalLayout {
+            vertical-stretch: 1;
+
+            // ===== left: environments =====
+            Rectangle {
+                width: 280px;
+                background: Palette.alternate-background;
+                VerticalLayout {
+                    padding: 12px;
+                    spacing: 8px;
+                    HorizontalLayout {
+                        Text {
+                            text: "D365 → OpenAPI";
+                            font-size: 18px;
+                            font-weight: 700;
+                            vertical-alignment: center;
+                        }
+                        Rectangle { }
+                        Button {
+                            text: "⚙";
+                            enabled: !root.busy;
+                            clicked => { root.open-settings(); }
+                        }
+                    }
+                    SectionTitle { text: "ENVIRONMENTS"; }
+                    if root.environments.length == 0: Muted {
+                        text: "Add your Dynamics 365 environment (Finance & Operations or Dataverse) to get started.";
+                    }
+                    ListView {
+                        vertical-stretch: 1;
+                        for env[i] in root.environments: Rectangle {
+                            height: 48px;
+                            border-radius: 6px;
+                            background: i == root.current-env ? Palette.selection-background : env-ta.has-hover ? Palette.control-background : transparent;
+                            env-ta := TouchArea {
+                                enabled: !root.busy;
+                                clicked => { root.select-env(i); }
+                            }
+                            VerticalLayout {
+                                padding-left: 8px;
+                                padding-right: 8px;
+                                alignment: center;
+                                Text {
+                                    text: env.name;
+                                    font-weight: 600;
+                                    overflow: elide;
+                                    color: i == root.current-env ? Palette.selection-foreground : Palette.foreground;
+                                }
+                                Text {
+                                    text: env.url;
+                                    font-size: 11px;
+                                    overflow: elide;
+                                    color: (i == root.current-env ? Palette.selection-foreground : Palette.foreground).transparentize(0.35);
+                                }
+                            }
+                        }
+                    }
+                    HorizontalLayout {
+                        spacing: 6px;
+                        Button {
+                            text: "Add";
+                            enabled: !root.busy;
+                            clicked => { root.add-env(); }
+                        }
+                        Button {
+                            text: "Edit";
+                            enabled: !root.busy && root.current-env >= 0;
+                            clicked => { root.edit-env(); }
+                        }
+                        Button {
+                            text: "Remove";
+                            enabled: !root.busy && root.current-env >= 0;
+                            clicked => { root.remove-env(); }
+                        }
+                    }
+                    if root.current-env >= 0: VerticalLayout {
+                        spacing: 6px;
+                        Muted { text: root.env-info; }
+                        Button {
+                            text: root.has-saved ? "Check for updates" : "Sign in and download";
+                            primary: true;
+                            enabled: !root.busy;
+                            clicked => { root.download(); }
+                        }
+                    }
+                }
+            }
+
+            // ===== centre: entities =====
+            VerticalLayout {
+                horizontal-stretch: 1;
+                padding: 12px;
+                spacing: 8px;
+                HorizontalLayout {
+                    spacing: 8px;
+                    LineEdit {
+                        horizontal-stretch: 1;
+                        placeholder-text: "Search entities, e.g. \"sales order\"";
+                        text <=> root.search;
+                        enabled: root.loaded;
+                        edited => { root.search-changed(); }
+                    }
+                    CheckBox {
+                        text: "Selected only";
+                        checked <=> root.selected-only;
+                        enabled: root.loaded;
+                        toggled => { root.search-changed(); }
+                    }
+                }
+                HorizontalLayout {
+                    spacing: 8px;
+                    Muted {
+                        text: root.entity-count;
+                        vertical-alignment: center;
+                        horizontal-stretch: 1;
+                    }
+                    Button {
+                        text: "Select shown";
+                        enabled: root.loaded;
+                        clicked => { root.select-shown(); }
+                    }
+                    Button {
+                        text: "Clear selection";
+                        enabled: root.loaded;
+                        clicked => { root.clear-selection(); }
+                    }
+                }
+                Rectangle {
+                    vertical-stretch: 1;
+                    border-width: 1px;
+                    border-color: Palette.border;
+                    border-radius: 6px;
+                    if !root.loaded: Muted {
+                        text: root.current-env < 0 ? "Pick or add an environment." : root.has-saved ? "Loading…" : "No metadata saved yet. Sign in and download it first.";
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                    if root.loaded: ListView {
+                        for item in root.entities: HorizontalLayout {
+                            height: 30px;
+                            padding-left: 8px;
+                            padding-right: 8px;
+                            spacing: 12px;
+                            CheckBox {
+                                text: item.set;
+                                checked: item.checked;
+                                toggled => { root.toggle-entity(item.index, self.checked); }
+                            }
+                            Text {
+                                text: item.type-name;
+                                font-size: 12px;
+                                vertical-alignment: center;
+                                overflow: elide;
+                                horizontal-stretch: 1;
+                                color: Palette.foreground.transparentize(0.45);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ===== right: output =====
+            Rectangle {
+                width: 320px;
+                background: Palette.alternate-background;
+                VerticalLayout {
+                    padding: 12px;
+                    spacing: 6px;
+                    SectionTitle { text: "FORMATS"; }
+                    CheckBox {
+                        text: "Swagger 2.0";
+                        checked <=> root.swagger2;
+                        toggled => { root.output-changed(); }
+                    }
+                    CheckBox {
+                        text: "OpenAPI 3.0";
+                        checked <=> root.openapi30;
+                        toggled => { root.output-changed(); }
+                    }
+                    CheckBox {
+                        text: "OpenAPI 3.1";
+                        checked <=> root.openapi31;
+                        toggled => { root.output-changed(); }
+                    }
+                    HorizontalLayout {
+                        spacing: 12px;
+                        CheckBox {
+                            text: "JSON";
+                            checked <=> root.json;
+                            toggled => { root.output-changed(); }
+                        }
+                        CheckBox {
+                            text: "YAML";
+                            checked <=> root.yaml;
+                            toggled => { root.output-changed(); }
+                        }
+                        Rectangle { }
+                    }
+                    SectionTitle { text: "INCLUDE"; }
+                    CheckBox {
+                        text: "Bound actions and functions";
+                        checked <=> root.include-operations;
+                        toggled => { root.output-changed(); }
+                    }
+                    CheckBox {
+                        text: "Navigation properties";
+                        checked <=> root.include-navigation;
+                        toggled => { root.output-changed(); }
+                    }
+                    CheckBox {
+                        text: "Environment URL as server";
+                        checked <=> root.include-server-url;
+                        toggled => { root.output-changed(); }
+                    }
+                    SectionTitle { text: "OUTPUT"; }
+                    HorizontalLayout {
+                        spacing: 6px;
+                        LineEdit {
+                            placeholder-text: "Output folder";
+                            text <=> root.output-dir;
+                            edited => { root.output-changed(); }
+                        }
+                        Button {
+                            text: "Browse…";
+                            clicked => { root.browse-output(); }
+                        }
+                    }
+                    LineEdit {
+                        placeholder-text: "File name";
+                        text <=> root.file-name;
+                        edited => { root.output-changed(); }
+                    }
+                    Muted { text: root.planned-files; }
+                    Rectangle { vertical-stretch: 1; }
+                    HorizontalLayout {
+                        spacing: 6px;
+                        Button {
+                            text: "Preview";
+                            enabled: root.loaded;
+                            clicked => { root.preview(); }
+                        }
+                        Button {
+                            text: "Export";
+                            primary: true;
+                            enabled: root.loaded && !root.busy;
+                            clicked => { root.export(); }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ===== status bar =====
+        Rectangle {
+            height: 40px;
+            background: Palette.control-background;
+            HorizontalLayout {
+                padding-left: 12px;
+                padding-right: 12px;
+                spacing: 10px;
+                if root.busy: Spinner {
+                    width: 20px;
+                    indeterminate: true;
+                }
+                Text {
+                    text: root.status-text;
+                    vertical-alignment: center;
+                    overflow: elide;
+                    horizontal-stretch: 1;
+                    color: root.status-error ? #e5484d : Palette.foreground;
+                }
+                if root.show-progress: ProgressIndicator {
+                    width: 200px;
+                    progress: max(root.progress, 0);
+                    indeterminate: root.progress < 0;
+                }
+                if root.busy && root.sign-in-url != "": Button {
+                    text: "Copy sign-in link";
+                    clicked => { root.copy-sign-in-link(); }
+                }
+                if root.busy: Button {
+                    text: "Cancel";
+                    clicked => { root.cancel(); }
+                }
+            }
+        }
+    }
+
+    // ===== dialogs =====
+    if root.show-editor: Dialog {
+        title: root.editing-existing ? "Edit environment" : "Add environment";
+        Text { text: "Name"; }
+        LineEdit {
+            text <=> root.editor-name;
+            placeholder-text: "e.g. Contoso UAT";
+        }
+        Text { text: "Environment URL"; }
+        LineEdit {
+            text <=> root.editor-url;
+            placeholder-text: "https://contoso.operations.dynamics.com or https://contoso.crm.dynamics.com";
+        }
+        Text { text: "Tenant ID (optional)"; }
+        LineEdit {
+            text <=> root.editor-tenant;
+            placeholder-text: "organizations";
+        }
+        Text { text: "Client ID (optional)"; }
+        LineEdit {
+            text <=> root.editor-client;
+            placeholder-text: "Leave empty to sign in without an app registration";
+        }
+        if root.editor-error != "": Text {
+            text: root.editor-error;
+            color: #e5484d;
+            wrap: word-wrap;
+        }
+        HorizontalLayout {
+            spacing: 6px;
+            alignment: end;
+            Button {
+                text: "Cancel";
+                clicked => { root.show-editor = false; }
+            }
+            Button {
+                text: "Save";
+                primary: true;
+                clicked => { root.save-env(); }
+            }
+        }
+    }
+
+    if root.show-settings: Dialog {
+        title: "Settings";
+        card-width: 560px;
+        Text { text: "Folder for saved metadata"; }
+        HorizontalLayout {
+            spacing: 6px;
+            LineEdit { text <=> root.cache-dir; }
+            Button {
+                text: "Browse…";
+                clicked => { root.browse-cache-dir(); }
+            }
+        }
+        Muted { text: "Default: " + root.default-cache-dir + "\nSaved metadata is moved to the new folder.\nSettings file: " + root.settings-path; }
+        if root.settings-error != "": Text {
+            text: root.settings-error;
+            color: #e5484d;
+            wrap: word-wrap;
+        }
+        HorizontalLayout {
+            spacing: 6px;
+            alignment: end;
+            Button {
+                text: "Use default";
+                clicked => { root.cache-dir = root.default-cache-dir; }
+            }
+            Button {
+                text: "Cancel";
+                clicked => { root.show-settings = false; }
+            }
+            Button {
+                text: "Save";
+                primary: true;
+                clicked => { root.save-cache-dir(); }
+            }
+        }
+    }
+
+    if root.show-preview: Dialog {
+        title: "Preview";
+        card-width: 1000px;
+        TextEdit {
+            text: root.preview-text;
+            read-only: true;
+            wrap: no-wrap;
+            font-size: 12px;
+            min-height: 300px;
+            preferred-height: 2000px;
+        }
+        HorizontalLayout {
+            alignment: end;
+            Button {
+                text: "Close";
+                clicked => { root.show-preview = false; }
+            }
+        }
+    }
+}
