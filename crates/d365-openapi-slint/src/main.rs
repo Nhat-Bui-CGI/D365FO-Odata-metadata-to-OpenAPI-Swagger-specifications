@@ -11,7 +11,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use d365_fetch::{Cache, Environment, Progress, Settings, Token};
 use d365_openapi_core::{Metadata, Options};
 use d365_openapi_desktop::model::{
-    AppState, EntityRow, OutputOptions, entity_rows, filter_rows, format_bytes, format_time,
+    AppState, EntityRow, OutputOptions, entity_rows, file_list_summary, filter_rows, format_bytes,
+    format_time,
 };
 use d365_openapi_desktop::pipeline::{self, Event, ExportJob};
 use slint::{ComponentHandle, Model, ModelRc, SharedString, VecModel};
@@ -37,6 +38,8 @@ struct App {
     cancel: Option<Arc<AtomicBool>>,
     /// Environment being edited in the dialog (`None` = adding).
     editing: Option<usize>,
+    /// Output folder of the running export; its result is shown in a dialog.
+    exporting: Option<PathBuf>,
 }
 
 thread_local! {
@@ -310,6 +313,11 @@ impl App {
         ui.set_busy(false);
         ui.set_show_progress(false);
         ui.set_sign_in_url("".into());
+        if self.exporting.take().is_some() {
+            ui.set_export_ok(result.is_ok());
+            ui.set_export_text(result.as_ref().unwrap_or_else(|e| e).as_str().into());
+            ui.set_show_export_result(true);
+        }
         match result {
             Ok(text) => self.set_status(&text, false),
             Err(text) => self.set_status(&text, true),
@@ -346,6 +354,7 @@ impl App {
     }
 
     fn refresh_count(&mut self) {
+        self.refresh_planned_files();
         let total = self.rows.len();
         let shown = self.shown.len();
         let selected = self.selection().len();
@@ -417,7 +426,9 @@ impl App {
                 .unwrap_or_default()
                 .into(),
         );
+        ui.set_combined(o.combined);
         ui.set_file_name(o.file_name.as_str().into());
+        ui.set_per_entity(o.per_entity);
         self.refresh_planned_files();
     }
 
@@ -434,7 +445,9 @@ impl App {
             include_navigation: ui.get_include_navigation(),
             include_server_url: ui.get_include_server_url(),
             output_dir: (!dir.is_empty()).then(|| PathBuf::from(dir)),
+            combined: ui.get_combined(),
             file_name: ui.get_file_name().into(),
+            per_entity: ui.get_per_entity(),
         };
         self.save_state();
         self.refresh_planned_files();
@@ -442,20 +455,18 @@ impl App {
 
     fn refresh_planned_files(&self) {
         let o = &self.state.output;
-        let names: Vec<String> = o
-            .planned_files(&o.output_dir.clone().unwrap_or_default())
-            .into_iter()
-            .map(|(_, _, p)| {
-                p.file_name()
-                    .unwrap_or_default()
-                    .to_string_lossy()
-                    .into_owned()
-            })
-            .collect();
-        let text = if names.is_empty() {
-            "Pick at least one format, and JSON or YAML.".to_string()
-        } else {
-            format!("Writes:\n{}", names.join("\n"))
+        let files = o.planned_files(
+            &o.output_dir.clone().unwrap_or_default(),
+            &self.selected_sets(),
+        );
+        let text = match o.problem() {
+            Some(p) => p.to_string(),
+            None if files.is_empty() => "Select at least one entity.".to_string(),
+            None => format!(
+                "Writes {} file(s):\n{}",
+                files.len(),
+                file_list_summary(&files, 12).join("\n")
+            ),
         };
         self.ui().set_planned_files(text.into());
     }
@@ -500,13 +511,17 @@ impl App {
         let Some(dir) = self.state.output.output_dir.clone() else {
             return self.set_status("Choose an output folder first.", true);
         };
+        let entity_sets = self.selected_sets();
         let job = ExportJob {
             metadata,
-            entity_sets: self.selected_sets(),
-            files: self.state.output.planned_files(&dir),
+            files: self.state.output.planned_files(&dir, &entity_sets),
+            entity_sets,
             base_options: self.options(),
         };
         self.run_job("Exporting", move |emit, _| pipeline::export(emit, job));
+        if self.cancel.is_some() {
+            self.exporting = Some(dir);
+        }
     }
 
     // ---------- settings ----------
@@ -591,6 +606,7 @@ fn main() -> Result<(), slint::PlatformError> {
             env_model,
             tokens: HashMap::new(),
             cancel: None,
+            exporting: None,
             editing: None,
         })
     });
@@ -654,6 +670,15 @@ fn main() -> Result<(), slint::PlatformError> {
     }
     ui.on_preview(|| with_app(|a| a.preview()));
     ui.on_export(|| with_app(|a| a.export()));
+    ui.on_open_output_folder(|| {
+        with_app(|a| {
+            if let Some(dir) = a.state.output.output_dir.clone()
+                && let Err(e) = pipeline::open_folder(&dir)
+            {
+                a.set_status(&e, true);
+            }
+        })
+    });
     ui.on_open_settings(|| with_app(|a| a.open_settings()));
     ui.on_save_cache_dir(|| with_app(|a| a.save_cache_dir()));
 

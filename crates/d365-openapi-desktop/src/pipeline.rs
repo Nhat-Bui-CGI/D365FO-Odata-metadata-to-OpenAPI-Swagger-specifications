@@ -1,7 +1,7 @@
 //! Long-running work, independent of any UI toolkit. Callers run these on a
 //! background thread and forward [`Event`]s to their UI.
 
-use std::path::PathBuf;
+use std::path::Path;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::time::Duration;
@@ -9,7 +9,7 @@ use std::time::Duration;
 use d365_fetch::{Cache, Environment, Progress, StoreOutcome, Token};
 use d365_openapi_core::{Metadata, Options, OutputFormat, Platform, SpecVersion};
 
-use crate::model::format_time;
+use crate::model::{PlannedFile, format_time};
 
 pub enum Event {
     Status(String),
@@ -157,30 +157,36 @@ pub fn download(
 pub struct ExportJob {
     pub metadata: Arc<Metadata>,
     pub entity_sets: Vec<String>,
-    pub files: Vec<(SpecVersion, OutputFormat, PathBuf)>,
+    pub files: Vec<PlannedFile>,
     pub base_options: Options,
 }
 
 pub fn export(emit: Emit, job: ExportJob) -> Result<String, String> {
-    let sets: Vec<&str> = job.entity_sets.iter().map(String::as_str).collect();
+    let all: Vec<&str> = job.entity_sets.iter().map(String::as_str).collect();
     let mut written = Vec::new();
-    let mut last: Option<(SpecVersion, serde_json::Value)> = None;
-    for (version, format, path) in &job.files {
+    let mut last: Option<(SpecVersion, Option<&str>, serde_json::Value)> = None;
+    for file in &job.files {
+        let path = &file.path;
         emit(Event::Status(format!("Writing {}…", path.display())));
-        // Files are ordered by version, so each document is generated once.
-        if last.as_ref().is_none_or(|(v, _)| v != version) {
+        // Files of one document are next to each other, so each is generated once.
+        let set = file.entity_set.as_deref();
+        if last
+            .as_ref()
+            .is_none_or(|(v, s, _)| (*v, *s) != (file.version, set))
+        {
             let opts = Options {
-                version: *version,
+                version: file.version,
                 ..job.base_options.clone()
             };
+            let sets = set.map_or_else(|| all.clone(), |s| vec![s]);
             let doc = d365_openapi_core::generate(&job.metadata, &sets, &opts)
                 .map_err(|e| e.to_string())?;
-            last = Some((*version, doc));
+            last = Some((file.version, set, doc));
         }
-        let text = d365_openapi_core::render(&last.as_ref().unwrap().1, *format)
+        let text = d365_openapi_core::render(&last.as_ref().unwrap().2, file.format)
             .map_err(|e| e.to_string())?;
         if let Some(dir) = path.parent() {
-            std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+            std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
         }
         std::fs::write(path, text).map_err(|e| format!("{}: {e}", path.display()))?;
         written.push(path.clone());
@@ -193,8 +199,24 @@ pub fn export(emit: Emit, job: ExportJob) -> Result<String, String> {
     Ok(format!(
         "Exported {} file(s) for {} entities to {dir}",
         written.len(),
-        sets.len()
+        all.len()
     ))
+}
+
+/// Opens a folder in the system file manager.
+pub fn open_folder(dir: &Path) -> Result<(), String> {
+    let program = if cfg!(windows) {
+        "explorer"
+    } else if cfg!(target_os = "macos") {
+        "open"
+    } else {
+        "xdg-open"
+    };
+    std::process::Command::new(program)
+        .arg(dir)
+        .spawn()
+        .map(drop)
+        .map_err(|e| format!("Could not open {}: {e}", dir.display()))
 }
 
 /// Generates one document as text, for previews. Very large output is cut off.
@@ -254,4 +276,47 @@ pub fn validate_environment(env: &Environment) -> Result<Environment, String> {
         tenant: env.tenant.trim().into(),
         client_id: env.client_id.trim().into(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::OutputOptions;
+
+    #[test]
+    fn exports_one_file_per_entity() {
+        let xml = include_str!("../../d365-openapi-core/tests/fixtures/sample_metadata.xml");
+        let metadata = Arc::new(d365_openapi_core::parse_str(xml).unwrap());
+        let dir = std::env::temp_dir().join(format!("d365-export-{}", std::process::id()));
+        let sets = vec!["CustomersV3".to_string(), "SalesOrderLines".to_string()];
+        let output = OutputOptions {
+            per_entity: true,
+            ..Default::default()
+        };
+        let job = ExportJob {
+            metadata,
+            files: output.planned_files(&dir, &sets),
+            entity_sets: sets,
+            base_options: base_options(None, &output),
+        };
+        let msg = export(&|_| {}, job).unwrap();
+        assert!(
+            msg.starts_with("Exported 3 file(s) for 2 entities"),
+            "{msg}"
+        );
+
+        let paths = |name: &str| -> Vec<String> {
+            let text = std::fs::read_to_string(dir.join(name)).unwrap();
+            let doc: serde_json::Value = serde_json::from_str(&text).unwrap();
+            doc["paths"].as_object().unwrap().keys().cloned().collect()
+        };
+        let all = paths("d365fo-api.openapi-3.0.json");
+        let one = paths("CustomersV3.openapi-3.0.json");
+        assert!(all.iter().any(|p| p.contains("SalesOrderLines")));
+        assert!(
+            one.iter().all(|p| p.starts_with("/data/CustomersV3")),
+            "{one:?}"
+        );
+        std::fs::remove_dir_all(dir).unwrap();
+    }
 }

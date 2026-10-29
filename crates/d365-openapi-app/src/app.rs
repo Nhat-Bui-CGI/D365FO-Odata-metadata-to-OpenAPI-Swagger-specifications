@@ -11,7 +11,7 @@ use eframe::egui::{self, Color32, RichText};
 
 use crate::jobs::{self, Event, Msg};
 use d365_openapi_desktop::model::{
-    AppState, EntityRow, entity_rows, filter_rows, format_bytes, format_time,
+    AppState, EntityRow, entity_rows, file_list_summary, filter_rows, format_bytes, format_time,
 };
 use d365_openapi_desktop::pipeline::{self, ExportJob};
 
@@ -46,6 +46,15 @@ struct Preview {
     text: String,
 }
 
+/// The result of the last export, shown in a dialog.
+struct ExportNotice {
+    result: Result<String, String>,
+    dir: PathBuf,
+}
+
+const OK_COLOR: Color32 = Color32::from_rgb(40, 140, 70);
+const ERROR_COLOR: Color32 = Color32::from_rgb(200, 60, 50);
+
 pub struct App {
     settings: Settings,
     settings_path: PathBuf,
@@ -68,6 +77,9 @@ pub struct App {
     settings_editor: Option<SettingsEditor>,
     preview: Option<Preview>,
     confirm_delete: Option<usize>,
+    /// Set while an export runs; its result becomes `export_notice`.
+    exporting: Option<PathBuf>,
+    export_notice: Option<ExportNotice>,
 }
 
 impl App {
@@ -107,6 +119,8 @@ impl App {
             settings_editor: None,
             preview: None,
             confirm_delete: None,
+            exporting: None,
+            export_notice: None,
         };
         let last = app.state.last_environment.clone();
         let index = app
@@ -197,6 +211,12 @@ impl App {
                 }
                 Msg::Finished(r) => {
                     self.busy = None;
+                    if let Some(dir) = self.exporting.take() {
+                        self.export_notice = Some(ExportNotice {
+                            result: r.clone(),
+                            dir,
+                        });
+                    }
                     self.last_result = Some(r);
                 }
             }
@@ -268,15 +288,17 @@ impl App {
             self.last_result = Some(Err("Choose an output folder first.".into()));
             return;
         };
+        let selected = self.selected();
         let job = ExportJob {
             metadata: l.metadata.clone(),
-            entity_sets: self.selected(),
-            files: self.state.output.planned_files(&dir),
+            files: self.state.output.planned_files(&dir, &selected),
+            entity_sets: selected,
             base_options: self.base_options(),
         };
         self.start("Exporting", ctx, move |c| {
             pipeline::export(&|e| c.emit(e), job)
         });
+        self.exporting = Some(dir);
     }
 
     fn show_preview(&mut self) {
@@ -431,11 +453,7 @@ impl App {
             }
         }
         if self.tokens.get(&env.url).is_some_and(|t| !t.is_expired()) {
-            ui.label(
-                RichText::new("✔ Signed in")
-                    .small()
-                    .color(Color32::from_rgb(60, 160, 90)),
-            );
+            ui.label(RichText::new("✔ Signed in").small().color(OK_COLOR));
         }
     }
 
@@ -580,30 +598,35 @@ impl App {
         {
             o.output_dir = Some(dir);
         }
-        ui.horizontal(|ui| {
-            ui.label("File name");
-            ui.text_edit_singleline(&mut o.file_name);
+        ui.checkbox(&mut o.combined, "One file with all entities");
+        ui.add_enabled_ui(o.combined, |ui| {
+            ui.horizontal(|ui| {
+                ui.label("File name");
+                ui.text_edit_singleline(&mut o.file_name);
+            });
         });
+        ui.checkbox(&mut o.per_entity, "One file per entity")
+            .on_hover_text(
+                "Each file is named after its entity set, for example CustomersV3.openapi-3.0.json",
+            );
         if *o != before {
             self.mark_dirty();
         }
 
         let o = &self.state.output;
+        let selected = self.selected();
         let files = o
             .output_dir
             .as_ref()
-            .map(|d| o.planned_files(d))
+            .map(|d| o.planned_files(d, &selected))
             .unwrap_or_default();
-        let selected = self.selected().len();
         ui.add_space(8.0);
         let problem = if self.loaded.is_none() {
             Some("Load metadata first.")
-        } else if selected == 0 {
+        } else if selected.is_empty() {
             Some("Select at least one entity.")
-        } else if o.versions().is_empty() || o.formats().is_empty() {
-            Some("Pick at least one format and JSON or YAML.")
         } else {
-            None
+            o.problem()
         };
         let busy = self.busy.is_some();
         let export_ok = problem.is_none() && !busy && o.output_dir.is_some();
@@ -629,13 +652,9 @@ impl App {
         }
         if let Some(p) = problem {
             ui.label(RichText::new(p).weak().small());
-        } else if !files.is_empty() {
-            for (_, _, f) in &files {
-                ui.label(
-                    RichText::new(f.file_name().unwrap_or_default().to_string_lossy())
-                        .small()
-                        .weak(),
-                );
+        } else {
+            for name in file_list_summary(&files, 12) {
+                ui.label(RichText::new(name).small().weak());
             }
         }
     }
@@ -693,12 +712,8 @@ impl App {
             ui.ctx().request_repaint_after(Duration::from_millis(250));
         } else {
             match &self.last_result {
-                Some(Ok(m)) => {
-                    ui.label(RichText::new(format!("✔ {m}")).color(Color32::from_rgb(60, 160, 90)))
-                }
-                Some(Err(m)) => {
-                    ui.label(RichText::new(format!("⚠ {m}")).color(Color32::from_rgb(210, 80, 70)))
-                }
+                Some(Ok(m)) => ui.label(RichText::new(format!("✔ {m}")).color(OK_COLOR)),
+                Some(Err(m)) => ui.label(RichText::new(format!("⚠ {m}")).color(ERROR_COLOR)),
                 None => ui.label(RichText::new("Ready").weak()),
             };
         }
@@ -735,7 +750,7 @@ impl App {
                 });
                 ui.label(RichText::new("Leave Tenant and Client ID empty to sign in without an app registration (if your tenant allows it). If sign-in is blocked, use your own app registration with redirect URI http://localhost and the Dynamics ERP Odata.FullAccess permission. See the README.").small().weak());
                 if let Some(e) = &ed.error {
-                    ui.colored_label(Color32::from_rgb(210, 80, 70), e);
+                    ui.colored_label(ERROR_COLOR, e);
                 }
                 ui.horizontal(|ui| {
                     save = ui.button("Save").clicked();
@@ -808,6 +823,42 @@ impl App {
         }
     }
 
+    fn export_notice_window(&mut self, ctx: &egui::Context) {
+        let Some(n) = &self.export_notice else { return };
+        let (mut close, mut open) = (false, false);
+        egui::Modal::new(egui::Id::unique("export_notice")).show(ctx, |ui| {
+            ui.set_max_width(420.0);
+            match &n.result {
+                Ok(msg) => {
+                    ui.heading(RichText::new("✔ Export finished").color(OK_COLOR));
+                    ui.label(msg);
+                }
+                Err(e) => {
+                    ui.heading(RichText::new("⚠ Export failed").color(ERROR_COLOR));
+                    ui.label(e);
+                }
+            }
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                if n.result.is_ok() && ui.button("📁 Open folder").clicked() {
+                    open = true;
+                }
+                if ui.button("OK").clicked() {
+                    close = true;
+                }
+            });
+        });
+        if open {
+            if let Err(e) = pipeline::open_folder(&n.dir) {
+                self.last_result = Some(Err(e));
+            }
+            close = true;
+        }
+        if close {
+            self.export_notice = None;
+        }
+    }
+
     fn settings_window(&mut self, ctx: &egui::Context) {
         let Some(ed) = &mut self.settings_editor else {
             return;
@@ -830,7 +881,7 @@ impl App {
             ui.add_space(6.0);
             ui.label(RichText::new(format!("Settings file: {}", self.settings_path.display())).small().weak());
             if let Some(e) = &ed.error {
-                ui.colored_label(Color32::from_rgb(210, 80, 70), e);
+                ui.colored_label(ERROR_COLOR, e);
             }
             ui.add_space(4.0);
             apply = ui.button("Save").clicked();
@@ -921,6 +972,7 @@ impl eframe::App for App {
 
         self.env_editor_window(&ctx);
         self.confirm_delete_window(&ctx);
+        self.export_notice_window(&ctx);
         self.settings_window(&ctx);
         self.preview_window(&ctx);
         self.save_state_if_due();

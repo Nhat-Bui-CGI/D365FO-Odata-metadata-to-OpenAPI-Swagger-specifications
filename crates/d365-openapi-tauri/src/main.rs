@@ -2,14 +2,14 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::collections::{BTreeSet, HashMap};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use d365_fetch::{Cache, Environment, Progress, Settings, Token};
 use d365_openapi_core::{Metadata, Options};
 use d365_openapi_desktop::model::{
-    AppState, OutputOptions, entity_rows, format_bytes, format_time,
+    AppState, OutputOptions, entity_rows, file_list_summary, format_bytes, format_time,
 };
 use d365_openapi_desktop::pipeline::{self, Event, ExportJob};
 use serde::Serialize;
@@ -345,23 +345,31 @@ fn set_selection(
 }
 
 #[tauri::command]
-fn set_output(shared: State<'_, Shared>, output: OutputOptions) -> Result<Vec<String>, String> {
+fn set_output(shared: State<'_, Shared>, output: OutputOptions) -> Result<(), String> {
     let mut inner = shared.lock().unwrap();
     inner.state.output = output;
-    inner.save_state()?;
-    Ok(planned_file_names(&inner.state.output))
+    inner.save_state()
 }
 
-fn planned_file_names(o: &OutputOptions) -> Vec<String> {
-    o.planned_files(&o.output_dir.clone().unwrap_or_default())
-        .into_iter()
-        .map(|(_, _, p)| {
-            p.file_name()
-                .unwrap_or_default()
-                .to_string_lossy()
-                .into_owned()
-        })
-        .collect()
+#[derive(Serialize)]
+struct Planned {
+    count: usize,
+    names: Vec<String>,
+}
+
+#[tauri::command]
+fn planned_files(shared: State<'_, Shared>, selected: Vec<String>) -> Planned {
+    let o = &shared.lock().unwrap().state.output;
+    let files = o.planned_files(&o.output_dir.clone().unwrap_or_default(), &selected);
+    Planned {
+        count: files.len(),
+        names: file_list_summary(&files, 12),
+    }
+}
+
+#[tauri::command]
+fn open_folder(dir: String) -> Result<(), String> {
+    pipeline::open_folder(Path::new(&dir))
 }
 
 #[tauri::command]
@@ -415,15 +423,16 @@ fn export(app: AppHandle, shared: State<'_, Shared>, url: String) -> Result<(), 
             .clone()
             .ok_or("Choose an output folder first.")?;
         let env = inner.environment(&url).ok();
+        let entity_sets: Vec<String> = inner
+            .state
+            .selections
+            .get(&url)
+            .map(|s| s.iter().cloned().collect())
+            .unwrap_or_default();
         ExportJob {
             metadata,
-            entity_sets: inner
-                .state
-                .selections
-                .get(&url)
-                .map(|s| s.iter().cloned().collect())
-                .unwrap_or_default(),
-            files: o.planned_files(&dir),
+            files: o.planned_files(&dir, &entity_sets),
+            entity_sets,
             base_options: pipeline::base_options(env.as_ref(), o),
         }
     };
@@ -450,11 +459,6 @@ fn set_cache_dir(shared: State<'_, Shared>, dir: String) -> Result<String, Strin
     inner.settings.cache_dir = (new_dir != Settings::default_cache_dir()).then_some(new_dir);
     inner.save_settings()?;
     Ok(inner.cache.dir().display().to_string())
-}
-
-#[tauri::command]
-fn planned_files(shared: State<'_, Shared>) -> Vec<String> {
-    planned_file_names(&shared.lock().unwrap().state.output)
 }
 
 fn main() {
@@ -494,6 +498,7 @@ fn main() {
             export,
             set_cache_dir,
             planned_files,
+            open_folder,
         ])
         .run(tauri::generate_context!())
         .expect("error while running the app");

@@ -75,6 +75,8 @@ listen("job", ({ payload: e }) => {
       $("copy-link").hidden = false;
       break;
     case "finished":
+      if (state.exporting) showExportResult(e.ok, e.text);
+      state.exporting = false;
       setBusy(false);
       state.loading = false;
       setStatus((e.ok ? "✔ " : "⚠ ") + e.text, e.ok ? "ok" : "error");
@@ -279,7 +281,7 @@ function renderEntities() {
 
 function updateCount() {
   $("sel-count").textContent = `${state.selected.size} of ${state.rows.length} selected`;
-  renderOutputState();
+  refreshPlanned();
 }
 
 let saveSelectionTimer = null;
@@ -314,13 +316,18 @@ $("clear-shown").onclick = () => {
 // ---------- output ----------
 
 async function saveOutput() {
-  const names = await run(invoke("set_output", { output: state.output }));
-  renderOutputState(names);
+  await run(invoke("set_output", { output: state.output }));
+  refreshPlanned();
 }
 
-let plannedNames = [];
-function renderOutputState(names) {
-  if (names) plannedNames = names;
+// Files the export writes: their count and the first few names.
+let planned = { count: 0, names: [] };
+async function refreshPlanned() {
+  planned = await invoke("planned_files", { selected: [...state.selected] });
+  renderOutputState();
+}
+
+function renderOutputState() {
   const o = state.output;
   if (!o) return;
   $("out-dir").textContent = o.output_dir || "No folder chosen";
@@ -332,14 +339,17 @@ function renderOutputState(names) {
       ? "Select at least one entity."
       : !anyVersion || !anyFormat
         ? "Pick at least one format and JSON or YAML."
-        : "";
+        : !o.combined && !o.per_entity
+          ? "Pick a combined file, one file per entity, or both."
+          : "";
   $("out-problem").textContent = problem || (o.output_dir ? "" : "Choose an output folder to export.");
   $("preview").disabled = !!problem || state.busy;
   $("export").disabled = !!problem || state.busy || !o.output_dir;
-  $("export").textContent = `Export ${plannedNames.length} file(s)`;
+  $("file-name").disabled = !o.combined;
+  $("export").textContent = `Export ${planned.count} file(s)`;
   const list = $("out-files");
   list.replaceChildren(
-    ...(problem ? [] : plannedNames).map((n) => {
+    ...(problem ? [] : planned.names).map((n) => {
       const li = document.createElement("li");
       li.textContent = n;
       return li;
@@ -364,7 +374,26 @@ $("choose-dir").onclick = async () => {
     saveOutput();
   }
 };
-$("export").onclick = () => run(invoke("export", { url: state.current }));
+$("export").onclick = async () => {
+  state.exporting = true;
+  try {
+    await run(invoke("export", { url: state.current }));
+  } catch (err) {
+    state.exporting = false;
+    showExportResult(false, String(err));
+  }
+};
+
+function showExportResult(ok, text) {
+  $("export-title").textContent = ok ? "✔ Export finished" : "⚠ Export failed";
+  $("export-title").className = ok ? "ok" : "error";
+  $("export-text").textContent = text;
+  $("open-folder").hidden = !ok;
+  $("export-dialog").showModal();
+}
+$("export-dialog").addEventListener("close", () => {
+  if ($("export-dialog").returnValue === "open") run(invoke("open_folder", { dir: state.output.output_dir }));
+});
 $("preview").onclick = async () => {
   const o = state.output;
   const version = o.openapi30 ? "OpenAPI 3.0" : o.openapi31 ? "OpenAPI 3.1" : "Swagger 2.0";
@@ -413,7 +442,7 @@ $("settings-form").addEventListener("submit", async (ev) => {
   defaultCacheDir = init.defaultCacheDir;
   document.querySelectorAll("[data-opt]").forEach((cb) => (cb.checked = !!state.output[cb.dataset.opt]));
   $("file-name").value = state.output.file_name;
-  renderOutputState(await invoke("planned_files"));
+  refreshPlanned();
   renderEnvironments();
   renderEntities();
   const start = state.environments.find((e) => e.url === init.lastEnvironment) || state.environments[0];

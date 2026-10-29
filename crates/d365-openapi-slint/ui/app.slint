@@ -104,12 +104,18 @@ export component AppWindow inherits Window {
     in-out property <bool> include-navigation;
     in-out property <bool> include-server-url;
     in-out property <string> output-dir;
+    in-out property <bool> combined;
     in-out property <string> file-name;
+    in-out property <bool> per-entity;
     in property <string> planned-files;
     callback output-changed();
     callback browse-output();
     callback preview();
     callback export();
+    in-out property <bool> show-export-result;
+    in property <bool> export-ok;
+    in property <string> export-text;
+    callback open-output-folder();
 
     // ----- dialogs -----
     in-out property <bool> show-editor;
@@ -361,10 +367,21 @@ export component AppWindow inherits Window {
                             clicked => { root.browse-output(); }
                         }
                     }
+                    CheckBox {
+                        text: "One file with all entities";
+                        checked <=> root.combined;
+                        toggled => { root.output-changed(); }
+                    }
                     LineEdit {
                         placeholder-text: "File name";
+                        enabled: root.combined;
                         text <=> root.file-name;
                         edited => { root.output-changed(); }
+                    }
+                    CheckBox {
+                        text: "One file per entity (named after it)";
+                        checked <=> root.per-entity;
+                        toggled => { root.output-changed(); }
                     }
                     Muted { text: root.planned-files; }
                     Rectangle { vertical-stretch: 1; }
@@ -498,6 +515,31 @@ export component AppWindow inherits Window {
                 text: "Save";
                 primary: true;
                 clicked => { root.save-cache-dir(); }
+            }
+        }
+    }
+
+    if root.show-export-result: Dialog {
+        title: root.export-ok ? "✔ Export finished" : "⚠ Export failed";
+        Text {
+            text: root.export-text;
+            color: root.export-ok ? Palette.foreground : #e5484d;
+            wrap: word-wrap;
+        }
+        HorizontalLayout {
+            spacing: 6px;
+            alignment: end;
+            if root.export-ok: Button {
+                text: "Open folder";
+                clicked => {
+                    root.open-output-folder();
+                    root.show-export-result = false;
+                }
+            }
+            Button {
+                text: "OK";
+                primary: true;
+                clicked => { root.show-export-result = false; }
             }
         }
     }
