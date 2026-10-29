@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- The egui app now uses a light theme.
+
 ## 1.1.2 (2026-10-29)
 
 - Fix: after the environment refused a sign-in (401/403), every retry reused
