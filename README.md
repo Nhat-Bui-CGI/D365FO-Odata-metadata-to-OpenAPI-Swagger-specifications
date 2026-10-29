@@ -1,3 +1,5 @@
+<img src="crates/d365-openapi-tauri/icons/128x128.png" width="96" alt="" align="right">
+
 # D365FO OData metadata to OpenAPI
 
 Desktop tool written in Rust that converts the OData `$metadata` of a
