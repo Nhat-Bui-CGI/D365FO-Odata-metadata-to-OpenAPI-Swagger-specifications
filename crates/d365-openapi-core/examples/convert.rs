@@ -3,7 +3,9 @@
 //! cargo run --example convert -- <metadata.xml> <swagger-2.0|openapi-3.0|openapi-3.1> <json|yaml> [EntitySet ...]
 //! With no entity sets, every entity set is included.
 
-use d365_openapi_core::{Options, OutputFormat, SpecVersion, generate, parse_reader, render};
+use d365_openapi_core::{
+    Options, OutputFormat, Platform, SpecVersion, generate, parse_reader, render,
+};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -31,6 +33,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let opts = Options {
         version,
+        platform: Platform::of_metadata(&md),
         ..Default::default()
     };
     print!("{}", render(&generate(&md, &sets, &opts)?, format)?);

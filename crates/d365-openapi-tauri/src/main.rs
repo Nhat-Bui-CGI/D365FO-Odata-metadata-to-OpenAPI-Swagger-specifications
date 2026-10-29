@@ -124,7 +124,7 @@ fn run_job(
                     Progress::Connecting => (
                         0,
                         None,
-                        "Waiting for D365FO to send the metadata…".to_string(),
+                        "Waiting for the server to send the metadata…".to_string(),
                     ),
                     Progress::Downloading { received, total } => (
                         received,

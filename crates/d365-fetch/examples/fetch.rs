@@ -29,13 +29,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         eprintln!("Opening browser. If it doesn't open, visit:\n{url}");
         webbrowser::open(url)
     })?;
-    let data = download_metadata(&env, &token.access_token, &cancel, |p| match p {
-        Progress::Connecting => eprintln!("Connecting..."),
-        Progress::Downloading { received, .. } => {
-            eprint!("\rDownloaded {:.1} MB", received as f64 / 1e6)
-        }
-        Progress::Done { bytes } => eprintln!("\nDone, {bytes} bytes"),
-    })?;
+    // Dataverse hosts look like contoso.crm4.dynamics.com.
+    let service_path = if env.contains(".crm") {
+        "/api/data/v9.2"
+    } else {
+        "/data"
+    };
+    let data = download_metadata(
+        &env,
+        service_path,
+        &token.access_token,
+        &cancel,
+        |p| match p {
+            Progress::Connecting => eprintln!("Connecting..."),
+            Progress::Downloading { received, .. } => {
+                eprint!("\rDownloaded {:.1} MB", received as f64 / 1e6)
+            }
+            Progress::Done { bytes } => eprintln!("\nDone, {bytes} bytes"),
+        },
+    )?;
     let cache = Cache::new(Settings::default().cache_dir());
     let outcome = cache.store(&env, &data)?;
     eprintln!("{outcome:?}: {}", cache.metadata_path(&env).display());

@@ -10,7 +10,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "D365FO → OpenAPI",
+        "title": "D365 → OpenAPI",
         "width": 1200,
         "height": 760,
         "minWidth": 900,

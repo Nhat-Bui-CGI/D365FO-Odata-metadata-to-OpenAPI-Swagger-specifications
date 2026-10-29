@@ -1,4 +1,4 @@
-//! Fetching and caching D365FO `$metadata`:
+//! Fetching and caching Dynamics 365 `$metadata` (Finance & Operations or Dataverse):
 //! interactive Azure AD sign-in, download with progress, a local cache per
 //! environment, and the app's saved settings.
 
