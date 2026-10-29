@@ -95,9 +95,14 @@ needed in D365FO or Dataverse.
    entities you want. Your selection is remembered per environment.
 5. Pick **formats** (OpenAPI 3.0 / 3.1 / Swagger 2.0 and JSON / YAML) and what
    to include (actions and functions, navigation properties, the environment
-   URL as server), then an output folder and a file name.
-6. **Preview** or **Export**. You get one file per chosen version and format,
-   e.g. `contoso-uat.openapi-3.0.json`.
+   URL as server), then an output folder. Choose one or both:
+   - **One file with all entities**, with a file name you choose, e.g.
+     `contoso-uat.openapi-3.0.json`.
+   - **One file per entity**, named after the entity set, e.g.
+     `CustomersV3.openapi-3.0.json`.
+6. **Preview** or **Export**. You get these files for each chosen version and
+   format. A dialog tells you when the export is finished or failed, and can
+   open the output folder.
 
 **Settings** changes the folder where metadata is saved; existing files are
 moved to the new folder.

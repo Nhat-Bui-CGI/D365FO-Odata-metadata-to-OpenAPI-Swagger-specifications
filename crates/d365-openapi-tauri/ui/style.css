@@ -57,6 +57,9 @@ label.field input { margin-top: 3px; }
 .muted { color: var(--muted); }
 .small { font-size: 12px; }
 .ok { color: var(--ok); }
+.indent { margin-left: 22px; }
+#export-dialog { max-width: 480px; }
+#export-text { overflow-wrap: anywhere; }
 .error { color: var(--error); min-height: 1em; }
 .path { word-break: break-all; user-select: text; }
 .placeholder { margin: auto; color: var(--muted); }

@@ -67,7 +67,9 @@
       <h3>Save to</h3>
       <p id="out-dir" class="small path">No folder chosen</p>
       <button id="choose-dir">📁 Choose folder…</button>
-      <label class="field">File name <input id="file-name" type="text"></label>
+      <label><input type="checkbox" data-opt="combined"> One file with all entities</label>
+      <label class="field indent">File name <input id="file-name" type="text"></label>
+      <label title="Each file is named after its entity set, for example CustomersV3.openapi-3.0.json"><input type="checkbox" data-opt="per_entity"> One file per entity</label>
       <div class="row">
         <button id="preview">Preview</button>
         <button id="export" class="primary">Export</button>
@@ -133,6 +135,17 @@
       <div class="row">
         <button value="save" class="primary">Save</button>
         <button value="cancel">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="export-dialog">
+    <form method="dialog">
+      <h2 id="export-title"></h2>
+      <p id="export-text"></p>
+      <div class="row">
+        <button value="open" id="open-folder">📁 Open folder</button>
+        <button value="ok" class="primary">OK</button>
       </div>
     </form>
   </dialog>

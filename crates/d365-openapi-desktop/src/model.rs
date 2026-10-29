@@ -21,7 +21,21 @@ pub struct OutputOptions {
     /// Put the environment URL in `servers` / `host`.
     pub include_server_url: bool,
     pub output_dir: Option<PathBuf>,
+    /// Write one file with all selected entities, named `file_name`.
+    pub combined: bool,
     pub file_name: String,
+    /// Also write one file per selected entity, named after its entity set.
+    pub per_entity: bool,
+}
+
+/// One file an export writes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlannedFile {
+    pub version: SpecVersion,
+    pub format: OutputFormat,
+    pub path: PathBuf,
+    /// The one entity set in a per-entity file; `None` for the combined file.
+    pub entity_set: Option<String>,
 }
 
 impl Default for OutputOptions {
@@ -36,7 +50,9 @@ impl Default for OutputOptions {
             include_navigation: true,
             include_server_url: true,
             output_dir: None,
+            combined: true,
             file_name: "d365fo-api".into(),
+            per_entity: false,
         }
     }
 }
@@ -67,21 +83,62 @@ impl OutputOptions {
         f
     }
 
-    /// Every file an export writes: `<dir>/<name>.<version>.<ext>`.
-    pub fn planned_files(&self, dir: &Path) -> Vec<(SpecVersion, OutputFormat, PathBuf)> {
-        let name = sanitize_file_name(&self.file_name);
+    /// Every file an export writes: `<dir>/<name>.<version>.<ext>`, where the
+    /// name is `file_name` for the combined file and the entity set name for
+    /// per-entity files. Files of one document are next to each other.
+    pub fn planned_files(&self, dir: &Path, entity_sets: &[String]) -> Vec<PlannedFile> {
+        let mut docs: Vec<(String, Option<&String>)> = Vec::new();
+        if self.combined {
+            docs.push((sanitize_file_name(&self.file_name), None));
+        }
+        if self.per_entity {
+            docs.extend(entity_sets.iter().map(|s| (sanitize_file_name(s), Some(s))));
+        }
         let mut out = Vec::new();
-        for v in self.versions() {
-            for f in self.formats() {
-                out.push((
-                    v,
-                    f,
-                    dir.join(format!("{name}.{}.{}", v.slug(), f.extension())),
-                ));
+        for version in self.versions() {
+            for (name, set) in &docs {
+                for format in self.formats() {
+                    out.push(PlannedFile {
+                        version,
+                        format,
+                        path: dir.join(format!("{name}.{}.{}", version.slug(), format.extension())),
+                        entity_set: set.cloned(),
+                    });
+                }
             }
         }
         out
     }
+
+    /// Why nothing can be exported with these choices, if so.
+    pub fn problem(&self) -> Option<&'static str> {
+        if self.versions().is_empty() || self.formats().is_empty() {
+            Some("Pick at least one format and JSON or YAML.")
+        } else if !self.combined && !self.per_entity {
+            Some("Pick a combined file, one file per entity, or both.")
+        } else {
+            None
+        }
+    }
+}
+
+/// File names for display: the first `max`, then a count of the rest.
+pub fn file_list_summary(files: &[PlannedFile], max: usize) -> Vec<String> {
+    let mut names: Vec<String> = files
+        .iter()
+        .take(max)
+        .map(|f| {
+            f.path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .into_owned()
+        })
+        .collect();
+    if files.len() > max {
+        names.push(format!("… and {} more", files.len() - max));
+    }
+    names
 }
 
 pub fn sanitize_file_name(name: &str) -> String {
@@ -250,14 +307,47 @@ mod tests {
             file_name: "my api/v1".into(),
             ..Default::default()
         };
-        let names: Vec<String> = opts
-            .planned_files(Path::new("/out"))
-            .iter()
-            .map(|(_, _, p)| p.file_name().unwrap().to_string_lossy().into_owned())
-            .collect();
+        let names = file_list_summary(&opts.planned_files(Path::new("/out"), &[]), 99);
         assert_eq!(names.len(), 6);
         assert!(names.contains(&"my api_v1.swagger-2.0.json".to_string()));
         assert!(names.contains(&"my api_v1.openapi-3.1.yaml".to_string()));
+    }
+
+    #[test]
+    fn plans_one_file_per_entity() {
+        let sets = ["CustomersV3".to_string(), "SalesOrderLines".to_string()];
+        let opts = OutputOptions {
+            per_entity: true,
+            yaml: true,
+            ..Default::default()
+        };
+        let files = opts.planned_files(Path::new("/out"), &sets);
+        let names = file_list_summary(&files, 99);
+        assert_eq!(
+            names,
+            [
+                "d365fo-api.openapi-3.0.json",
+                "d365fo-api.openapi-3.0.yaml",
+                "CustomersV3.openapi-3.0.json",
+                "CustomersV3.openapi-3.0.yaml",
+                "SalesOrderLines.openapi-3.0.json",
+                "SalesOrderLines.openapi-3.0.yaml",
+            ]
+        );
+        assert_eq!(files[2].entity_set.as_deref(), Some("CustomersV3"));
+        assert_eq!(files[0].entity_set, None);
+
+        let only = OutputOptions {
+            combined: false,
+            ..opts
+        };
+        assert_eq!(only.planned_files(Path::new("/out"), &sets).len(), 4);
+        assert_eq!(file_list_summary(&files, 2).last().unwrap(), "… and 4 more");
+        let none = OutputOptions {
+            per_entity: false,
+            ..only
+        };
+        assert!(none.problem().is_some());
     }
 
     #[test]
