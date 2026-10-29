@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Fix: after the environment refused a sign-in (401/403), every retry reused
+  that sign-in until the app was restarted. The app now forgets it and asks
+  you to sign in again.
+
 ## 1.1.1 (2026-10-29)
 
 - New app icon (orange Rust gear with API braces) in all apps, the Windows

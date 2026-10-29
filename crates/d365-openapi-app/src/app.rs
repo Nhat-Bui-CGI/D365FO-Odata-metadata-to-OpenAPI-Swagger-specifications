@@ -176,6 +176,9 @@ impl App {
                 Msg::Event(Event::Token { env_url, token }) => {
                     self.tokens.insert(env_url, token);
                 }
+                Msg::Event(Event::SignedOut { env_url }) => {
+                    self.tokens.remove(&env_url);
+                }
                 Msg::Event(Event::Loaded { env_url, metadata }) => {
                     let rows = entity_rows(&metadata);
                     // Drop selections that no longer exist in the metadata.

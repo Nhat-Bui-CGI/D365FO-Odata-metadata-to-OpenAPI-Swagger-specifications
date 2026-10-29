@@ -286,6 +286,9 @@ impl App {
             Event::Token { env_url, token } => {
                 self.tokens.insert(env_url, token);
             }
+            Event::SignedOut { env_url } => {
+                self.tokens.remove(&env_url);
+            }
             Event::Loaded { env_url, metadata } => {
                 if self.env().is_none_or(|e| e.url != env_url) {
                     return; // The user switched environments meanwhile.
