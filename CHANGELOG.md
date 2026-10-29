@@ -1,12 +1,14 @@
 # Changelog
 
-## Unreleased
+## 1.2.0 (2026-10-29)
 
 - Export can write one file per entity, named after its entity set (for
   example `CustomersV3.openapi-3.0.json`), in addition to or instead of the
   combined file.
 - A dialog now shows when an export is finished or failed, with a button to
   open the output folder.
+- The app version is shown in the window title, next to the app name and in
+  Settings.
 
 ## 1.1.3 (2026-10-29)
 
