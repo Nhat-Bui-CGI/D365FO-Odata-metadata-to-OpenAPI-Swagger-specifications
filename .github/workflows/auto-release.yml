@@ -1,0 +1,46 @@
+name: Auto release
+
+# When a version bump lands on main, publishes a release for that version with
+# its CHANGELOG section as notes, then starts "Release binaries" for it.
+# A release made with GITHUB_TOKEN does not trigger other workflows, so the
+# binaries workflow is started explicitly.
+on:
+  push:
+    branches: [main]
+    paths: [crates/d365-openapi-app/Cargo.toml]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read version
+        id: version
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' crates/d365-openapi-app/Cargo.toml | head -1)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if gh release view "$version" >/dev/null 2>&1; then
+            echo "Release $version already exists."
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish release
+        if: steps.version.outputs.exists != 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          # Notes: the CHANGELOG section for this version, without its heading.
+          awk -v v="$VERSION" '
+            /^## / { if (found) exit; if (index($0, "## " v " ") == 1 || $0 == "## " v) { found = 1; next } }
+            found
+          ' CHANGELOG.md > notes.md
+          gh release create "$VERSION" --target "$GITHUB_SHA" --title "$VERSION" --notes-file notes.md
+          gh workflow run release.yml -f tag="$VERSION"
