@@ -34,8 +34,8 @@ jobs:
       - name: Test
         run: cargo test --workspace --exclude d365-openapi-tauri
 
-      - name: Build egui app
-        run: cargo build --release -p d365-openapi-app
+      - name: Build egui and Slint apps
+        run: cargo build --release -p d365-openapi-app -p d365-openapi-slint
 
       - name: Build Tauri app and installers
         working-directory: crates/d365-openapi-tauri
@@ -47,11 +47,13 @@ jobs:
         shell: pwsh
         run: |
           $v = "$env:TAG".TrimStart("v")
-          New-Item -ItemType Directory -Force dist, pkg/egui, pkg/tauri | Out-Null
+          New-Item -ItemType Directory -Force dist, pkg/egui, pkg/tauri, pkg/slint | Out-Null
           Copy-Item target/release/d365-openapi-app.exe, README.md, CHANGELOG.md pkg/egui/
           Copy-Item target/release/d365-openapi-tauri.exe, README.md, CHANGELOG.md pkg/tauri/
+          Copy-Item target/release/d365-openapi-slint.exe, README.md, CHANGELOG.md pkg/slint/
           Compress-Archive pkg/egui/* "dist/d365fo-openapi-egui-$v-windows-x64.zip"
           Compress-Archive pkg/tauri/* "dist/d365fo-openapi-tauri-$v-windows-x64.zip"
+          Compress-Archive pkg/slint/* "dist/d365fo-openapi-slint-$v-windows-x64.zip"
           Copy-Item target/release/bundle/msi/*.msi dist/
           Copy-Item target/release/bundle/nsis/*.exe dist/
           Get-ChildItem dist
@@ -80,10 +82,11 @@ jobs:
       - name: Test
         run: cargo test --workspace --exclude d365-openapi-tauri
 
-      - name: Build egui app (universal)
+      - name: Build egui and Slint apps (universal)
         run: |
-          cargo build --release -p d365-openapi-app --target aarch64-apple-darwin
-          cargo build --release -p d365-openapi-app --target x86_64-apple-darwin
+          for t in aarch64-apple-darwin x86_64-apple-darwin; do
+            cargo build --release -p d365-openapi-app -p d365-openapi-slint --target $t
+          done
 
       - name: Build Tauri app (universal dmg)
         working-directory: crates/d365-openapi-tauri
@@ -95,33 +98,10 @@ jobs:
         run: |
           v="${TAG#v}"
           mkdir -p dist
-          app="pkg/D365FO OpenAPI (egui).app"
-          mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources" icon.iconset
-          lipo -create -output "$app/Contents/MacOS/d365-openapi-app" \
-            target/aarch64-apple-darwin/release/d365-openapi-app \
-            target/x86_64-apple-darwin/release/d365-openapi-app
-          for s in 16 32 128 256 512; do
-            sips -z $s $s crates/d365-openapi-tauri/icons/icon.png --out icon.iconset/icon_${s}x${s}.png >/dev/null
-          done
-          iconutil -c icns icon.iconset -o "$app/Contents/Resources/icon.icns"
-          cat > "$app/Contents/Info.plist" <<PLIST
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0"><dict>
-            <key>CFBundleName</key><string>D365FO OpenAPI (egui)</string>
-            <key>CFBundleIdentifier</key><string>com.nhatbui.d365fo-openapi-egui</string>
-            <key>CFBundleExecutable</key><string>d365-openapi-app</string>
-            <key>CFBundleIconFile</key><string>icon</string>
-            <key>CFBundlePackageType</key><string>APPL</string>
-            <key>CFBundleShortVersionString</key><string>$v</string>
-            <key>CFBundleVersion</key><string>$v</string>
-            <key>NSHighResolutionCapable</key><true/>
-          </dict></plist>
-          PLIST
-          codesign --force --deep --sign - "$app"
-          ln -s /Applications pkg/Applications
-          hdiutil create -volname "D365FO OpenAPI (egui)" -srcfolder pkg -ov -format UDZO \
-            "dist/d365fo-openapi-egui-$v-macos-universal.dmg"
+          scripts/macos-dmg.sh d365-openapi-app "D365FO OpenAPI (egui)" \
+            com.nhatbui.d365fo-openapi-egui "$v" "dist/d365fo-openapi-egui-$v-macos-universal.dmg"
+          scripts/macos-dmg.sh d365-openapi-slint "D365FO OpenAPI (Slint)" \
+            com.nhatbui.d365fo-openapi-slint "$v" "dist/d365fo-openapi-slint-$v-macos-universal.dmg"
           cp target/universal-apple-darwin/release/bundle/dmg/*.dmg \
             "dist/d365fo-openapi-tauri-$v-macos-universal.dmg"
           ls -l dist
