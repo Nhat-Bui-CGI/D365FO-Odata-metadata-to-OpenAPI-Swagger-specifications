@@ -1,4 +1,6 @@
-use d365_openapi_core::{Error, Options, OutputFormat, SpecVersion, generate, parse_str, render};
+use d365_openapi_core::{
+    Error, Options, OutputFormat, Platform, SpecVersion, generate, parse_str, render,
+};
 use serde_json::Value;
 
 const SAMPLE: &str = include_str!("fixtures/sample_metadata.xml");
@@ -167,4 +169,31 @@ fn handles_large_metadata() {
     assert_eq!(md.entity_sets.len(), 5000);
     let doc = generate(&md, &["S1", "S4999"], &Options::default()).unwrap();
     assert_eq!(doc["paths"].as_object().unwrap().len(), 4);
+}
+
+#[test]
+fn dataverse_paths() {
+    let md = parse_str(include_str!("fixtures/dataverse_metadata.xml")).unwrap();
+    assert_eq!(Platform::of_metadata(&md), Platform::Dataverse);
+    assert_eq!(
+        Platform::of_metadata(&parse_str(SAMPLE).unwrap()),
+        Platform::FinanceOperations
+    );
+    let doc = generate(
+        &md,
+        &["accounts", "contacts", "msdyn_workorders"],
+        &Options {
+            platform: Platform::Dataverse,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let paths = doc["paths"].as_object().unwrap();
+    assert!(paths.contains_key("/api/data/v9.2/accounts"));
+    assert!(paths.contains_key("/api/data/v9.2/accounts({accountid})"));
+    assert!(paths.contains_key("/api/data/v9.2/msdyn_workorders({msdyn_workorderid})"));
+    assert!(!paths.keys().any(|p| p.starts_with("/data/")));
+    let text = serde_json::to_string(&doc).unwrap();
+    assert!(!text.contains("cross-company"));
+    assert!(doc["components"]["schemas"]["account"]["properties"]["name"].is_object());
 }

@@ -7,7 +7,7 @@ use crate::{Error, agent, check_status};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Progress {
-    /// Request sent, waiting for the server (D365FO can take a while to build metadata).
+    /// Request sent, waiting for the server (it can take a while to build metadata).
     Connecting,
     /// `total` is `None` when the server doesn't send a length.
     Downloading {
@@ -19,14 +19,20 @@ pub enum Progress {
     },
 }
 
-/// Downloads `{environment_url}/data/$metadata`.
+/// Downloads `{environment_url}{service_path}/$metadata`, where `service_path`
+/// is `/data` for Finance & Operations or `/api/data/v9.2` for Dataverse.
 pub fn download_metadata(
     environment_url: &str,
+    service_path: &str,
     access_token: &str,
     cancel: &AtomicBool,
     mut on_progress: impl FnMut(Progress),
 ) -> Result<Vec<u8>, Error> {
-    let url = format!("{}/data/$metadata", environment_url.trim_end_matches('/'));
+    let url = format!(
+        "{}{}/$metadata",
+        environment_url.trim_end_matches('/'),
+        service_path.trim_end_matches('/')
+    );
     on_progress(Progress::Connecting);
     let resp = agent()
         .get(&url)
@@ -116,8 +122,10 @@ pub(crate) mod tests {
         let body: Vec<u8> = (0..300_000u32).map(|i| (i % 251) as u8).collect();
         let (url, server) = serve("200 OK", body.clone(), 1);
         let mut events = Vec::new();
-        let data =
-            download_metadata(&url, "tok", &AtomicBool::new(false), |p| events.push(p)).unwrap();
+        let data = download_metadata(&url, "/data", "tok", &AtomicBool::new(false), |p| {
+            events.push(p)
+        })
+        .unwrap();
         assert_eq!(data, body);
         assert_eq!(events.first(), Some(&Progress::Connecting));
         assert_eq!(events.last(), Some(&Progress::Done { bytes: 300_000 }));
@@ -136,7 +144,8 @@ pub(crate) mod tests {
     #[test]
     fn reports_http_errors() {
         let (url, server) = serve("401 Unauthorized", b"nope".to_vec(), 1);
-        let err = download_metadata(&url, "tok", &AtomicBool::new(false), |_| {}).unwrap_err();
+        let err =
+            download_metadata(&url, "/data", "tok", &AtomicBool::new(false), |_| {}).unwrap_err();
         assert!(matches!(err, Error::Status { status: 401, .. }), "{err}");
         server.join().unwrap();
     }

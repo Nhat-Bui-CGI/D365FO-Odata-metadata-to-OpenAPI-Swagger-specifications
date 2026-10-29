@@ -1,4 +1,4 @@
-//! Convert Dynamics 365 Finance & Operations OData `$metadata` into
+//! Convert Dynamics 365 OData `$metadata` (Finance & Operations or Dataverse) into
 //! OpenAPI 3.0 / 3.1 or Swagger 2.0 specifications.
 //!
 //! ```no_run
@@ -13,10 +13,12 @@
 pub mod edm;
 mod generate;
 mod parse;
+mod platform;
 
 pub use edm::{EntitySet, Metadata};
 pub use generate::{Options, SpecVersion, generate};
 pub use parse::{parse_reader, parse_str};
+pub use platform::Platform;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {

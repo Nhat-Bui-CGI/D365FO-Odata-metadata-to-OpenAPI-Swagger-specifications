@@ -1,9 +1,20 @@
 # D365FO OData metadata to OpenAPI
 
 Desktop tool written in Rust that converts the OData `$metadata` of a
-Dynamics 365 Finance & Operations environment into **OpenAPI 3.0**,
-**OpenAPI 3.1** or **Swagger 2.0** specifications (JSON or YAML), for only the
-entities you choose.
+Dynamics 365 environment into **OpenAPI 3.0**, **OpenAPI 3.1** or
+**Swagger 2.0** specifications (JSON or YAML), for only the entities you
+choose.
+
+It works with:
+
+| Platform | Example URL | Service root |
+|---|---|---|
+| Finance & Operations (D365FO) | `https://contoso.operations.dynamics.com` | `/data` |
+| Dataverse: Customer Engagement (Sales, Customer Service), Field Service, Power Apps | `https://contoso.crm4.dynamics.com` | `/api/data/v9.2` |
+
+The app picks the platform from the URL: a host with a `crm`, `crm4`,
+`crm11`… part is Dataverse. Field Service tables (`msdyn_workorders` etc.) are
+part of the Dataverse metadata, so you find them with the search box.
 
 It comes with three front ends that share all logic, settings and saved
 metadata. Use whichever you prefer:
@@ -42,7 +53,7 @@ app then signs in with the Azure CLI's public client ID
 work account picks its own tenant.
 
 This works if your tenant allows that Microsoft app to get tokens for
-Dynamics 365 Finance & Operations. If an admin has blocked it or requires
+Dynamics 365 (it usually does). If an admin has blocked it or requires
 consent, sign-in fails with an `AADSTS` error. Then use your own app
 registration (below).
 
@@ -53,19 +64,23 @@ registration (below).
 2. **Authentication** → **Add a platform** → **Mobile and desktop
    applications** → custom redirect URI `http://localhost`.
    Set **Allow public client flows** to **Yes**.
-3. **API permissions** → **Add a permission** → **APIs my organization uses** →
-   **Microsoft Dynamics ERP** → Delegated → `Odata.FullAccess`.
+3. **API permissions** → **Add a permission**, then:
+   - Finance & Operations: **APIs my organization uses** →
+     **Microsoft Dynamics ERP** → Delegated → `Odata.FullAccess`.
+   - Dataverse: **Dynamics CRM** → Delegated → `user_impersonation`.
+
    Grant admin consent if your tenant requires it.
 4. Copy the **Application (client) ID** and **Directory (tenant) ID** into the
    environment's **Client ID** and **Tenant ID**.
 
-Either way, your D365FO user needs normal access to the data entities. No extra
-D365FO setup is needed.
+Either way, your user needs normal access to the data. No extra setup is
+needed in D365FO or Dataverse.
 
 ## Using the app
 
 1. **Add** an environment: a name, its URL (e.g.
-   `https://contoso-uat.sandbox.operations.dynamics.com`), and optionally a
+   `https://contoso-uat.sandbox.operations.dynamics.com` or
+   `https://contoso.crm4.dynamics.com`), and optionally a
    tenant ID and client ID (see *Signing in*).
 2. **Sign in and download.** The browser opens for sign-in. The status bar
    shows a spinner, the elapsed time and a progress bar while the metadata
@@ -167,8 +182,10 @@ To attach binaries to a release that already exists, run the workflow manually
 For each selected entity set:
 
 - `GET/POST /data/{EntitySet}` with `$filter`, `$select`, `$expand`, `$orderby`,
-  `$top`, `$skip`, `$count` and `cross-company`
+  `$top`, `$skip`, `$count` and (D365FO only) `cross-company`
 - `GET/PATCH/DELETE /data/{EntitySet}(key1='{key1}',key2='{key2}')`
+- For Dataverse the paths start with `/api/data/v9.2` instead, e.g.
+  `/api/data/v9.2/accounts({accountid})`
 - Bound actions and functions
 - Schemas for the entity types plus every enum and complex type they use.
   Navigation properties are kept only when their target is also selected.

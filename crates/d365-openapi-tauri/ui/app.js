@@ -153,7 +153,7 @@ async function refreshEnvironmentInfo() {
   dl.hidden = !info.downloadedAt;
   $("cache-none").hidden = !!info.downloadedAt;
   $("download").textContent = info.downloadedAt ? "🔄 Check for updates" : "⬇ Sign in and download";
-  $("download").title = info.downloadedAt ? "Download again and replace the saved copy only if D365FO has changed" : "";
+  $("download").title = info.downloadedAt ? "Download again and replace the saved copy only if the metadata has changed" : "";
   $("signed-in").hidden = !info.signedIn;
 }
 

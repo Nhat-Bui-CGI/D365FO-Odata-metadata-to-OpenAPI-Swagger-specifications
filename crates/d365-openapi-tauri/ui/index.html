@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>D365FO → OpenAPI</title>
+  <title>D365 → OpenAPI</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header>
-    <h1>D365FO → OpenAPI</h1>
+    <h1>D365 → OpenAPI</h1>
     <button id="open-settings" class="ghost">⚙ Settings</button>
   </header>
 
@@ -16,7 +16,7 @@
     <aside id="env-panel">
       <h2>Environments</h2>
       <ul id="env-list"></ul>
-      <p id="env-empty" class="muted">Add your D365FO environment to get started.</p>
+      <p id="env-empty" class="muted">Add your Dynamics 365 environment (Finance &amp; Operations or Dataverse) to get started.</p>
       <div class="row">
         <button id="env-add">+ Add</button>
         <button id="env-edit" disabled>Edit</button>
@@ -95,7 +95,7 @@
     <form method="dialog" id="env-form">
       <h2 id="env-dialog-title">Add environment</h2>
       <label class="field">Name <input name="name" placeholder="e.g. UAT"></label>
-      <label class="field">Environment URL <input name="url" placeholder="https://contoso-uat.sandbox.operations.dynamics.com" required></label>
+      <label class="field">Environment URL <input name="url" placeholder="https://contoso.operations.dynamics.com or https://contoso.crm.dynamics.com" required></label>
       <label class="field">Tenant ID <input name="tenant" placeholder="Optional: tenant ID or contoso.onmicrosoft.com"></label>
       <label class="field">Client ID <input name="client_id" placeholder="Optional: client ID of your app registration"></label>
       <p class="muted small">Leave Tenant and Client ID empty to sign in without an app registration (if your tenant allows it). If sign-in is blocked, use your own app registration with redirect URI http://localhost and the Dynamics ERP Odata.FullAccess permission. See the README.</p>
