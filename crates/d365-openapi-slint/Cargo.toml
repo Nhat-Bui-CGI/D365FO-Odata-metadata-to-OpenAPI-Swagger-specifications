@@ -1,13 +1,13 @@
 [package]
 name = "d365-openapi-slint"
-version = "1.1.0"
+version = "1.1.1"
 edition = "2024"
 
 [dependencies]
 arboard = { version = "3.7.0", default-features = false }
-d365-fetch = { version = "1.1.0", path = "../d365-fetch" }
-d365-openapi-core = { version = "1.1.0", path = "../d365-openapi-core" }
-d365-openapi-desktop = { version = "1.1.0", path = "../d365-openapi-desktop" }
+d365-fetch = { version = "1.1.1", path = "../d365-fetch" }
+d365-openapi-core = { version = "1.1.1", path = "../d365-openapi-core" }
+d365-openapi-desktop = { version = "1.1.1", path = "../d365-openapi-desktop" }
 rfd = { version = "0.17.2", default-features = false, features = ["xdg-portal"] }
 slint = "1.18.1"
 
