@@ -1,11 +1,14 @@
 # Changelog
 
-## Unreleased
+## 1.1.0 (2026-10-29)
 
+- New Slint desktop app (`crates/d365-openapi-slint`), released for Windows and
+  macOS next to the egui and Tauri apps.
 - Dataverse support: Customer Engagement, Field Service and other Dataverse
   environments (`*.crm*.dynamics.com`). Metadata comes from `/api/data/v9.2`,
   and the generated paths use that root. `cross-company` is only added for
   Finance & Operations.
+- macOS: universal dmgs for every app.
 
 ## 1.0.0 (2026-10-28)
 
