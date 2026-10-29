@@ -1,11 +1,11 @@
 [package]
 name = "d365-openapi-desktop"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2024"
 
 [dependencies]
-d365-fetch = { version = "1.0.0", path = "../d365-fetch" }
-d365-openapi-core = { version = "1.0.0", path = "../d365-openapi-core" }
+d365-fetch = { version = "1.1.0", path = "../d365-fetch" }
+d365-openapi-core = { version = "1.1.0", path = "../d365-openapi-core" }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 webbrowser = "1.2.5"
