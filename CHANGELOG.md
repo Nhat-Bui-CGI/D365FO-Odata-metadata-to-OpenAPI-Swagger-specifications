@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.1 (2026-10-29)
+
+- New app icon (orange Rust gear with API braces) in all apps, the Windows
+  .exe files and the installers.
+
 ## 1.1.0 (2026-10-29)
 
 - New Slint desktop app (`crates/d365-openapi-slint`), released for Windows and
