@@ -157,6 +157,9 @@ fn run_job(
             Event::Token { env_url, token } => {
                 shared.lock().unwrap().tokens.insert(env_url, token);
             }
+            Event::SignedOut { env_url } => {
+                shared.lock().unwrap().tokens.remove(&env_url);
+            }
             Event::Loaded { env_url, metadata } => {
                 let rows = entity_rows(&metadata);
                 let selected = {

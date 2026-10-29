@@ -20,6 +20,10 @@ pub enum Event {
         env_url: String,
         token: Token,
     },
+    /// The saved token was refused; the next download signs in again.
+    SignedOut {
+        env_url: String,
+    },
     Loaded {
         env_url: String,
         metadata: Arc<Metadata>,
@@ -62,39 +66,74 @@ pub fn download(
     env: &Environment,
     token: Option<Token>,
 ) -> Result<String, String> {
-    let token = match token.filter(|t| !t.is_expired()) {
-        Some(t) => t,
-        None => {
-            emit(Event::Status(
-                "Waiting for you to sign in in the browser…".into(),
-            ));
-            let cfg = env.auth_config();
-            let t =
-                d365_fetch::sign_in_interactive(&cfg, Duration::from_secs(300), cancel, |url| {
-                    emit(Event::SignInUrl(url.to_string()));
-                    webbrowser::open(url)
-                })
-                .map_err(|e| e.to_string())?;
-            emit(Event::Token {
-                env_url: env.url.clone(),
-                token: t.clone(),
-            });
-            t
-        }
+    let sign_in = || -> Result<Token, String> {
+        emit(Event::Status(
+            "Waiting for you to sign in in the browser… (Cancel to start over)".into(),
+        ));
+        let cfg = env.auth_config();
+        let t = d365_fetch::sign_in_interactive(&cfg, Duration::from_secs(300), cancel, |url| {
+            emit(Event::SignInUrl(url.to_string()));
+            webbrowser::open(url)
+        })
+        .map_err(|e| e.to_string())?;
+        emit(Event::Token {
+            env_url: env.url.clone(),
+            token: t.clone(),
+        });
+        Ok(t)
     };
     let platform = Platform::detect(&env.url);
-    emit(Event::Status(format!(
-        "Requesting metadata from {} (this can take a minute)…",
-        platform.short_name()
-    )));
-    let data = d365_fetch::download_metadata(
-        &env.url,
-        platform.data_path(),
-        &token.access_token,
-        cancel,
-        |p| emit(Event::Progress(p)),
-    )
-    .map_err(|e| e.to_string())?;
+    let fetch = |token: &Token| {
+        emit(Event::Status(format!(
+            "Requesting metadata from {} (this can take a minute)…",
+            platform.short_name()
+        )));
+        d365_fetch::download_metadata(
+            &env.url,
+            platform.data_path(),
+            &token.access_token,
+            cancel,
+            |p| emit(Event::Progress(p)),
+        )
+    };
+    let refused = |e: &d365_fetch::Error| {
+        matches!(
+            e,
+            d365_fetch::Error::Status {
+                status: 401 | 403,
+                ..
+            }
+        )
+    };
+    let signed_out = || {
+        emit(Event::SignedOut {
+            env_url: env.url.clone(),
+        })
+    };
+
+    let data = match token.filter(|t| !t.is_expired()) {
+        // A saved sign-in can stop working (other account, access removed):
+        // forget it and sign in again once.
+        Some(saved) => match fetch(&saved) {
+            Err(e) if refused(&e) => {
+                signed_out();
+                fetch(&sign_in()?)
+            }
+            other => other,
+        },
+        None => fetch(&sign_in()?),
+    };
+    let data = data.map_err(|e| {
+        if refused(&e) {
+            signed_out();
+            format!(
+                "{e}\nThis account has no access to the environment. \
+                 Download again to sign in with another account."
+            )
+        } else {
+            e.to_string()
+        }
+    })?;
     emit(Event::Status("Saving…".into()));
     let outcome = cache.store(&env.url, &data).map_err(|e| e.to_string())?;
     let metadata = parse_file(emit, cache, &env.url)?;
