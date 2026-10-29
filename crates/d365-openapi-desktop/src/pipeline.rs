@@ -7,7 +7,7 @@ use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 
 use d365_fetch::{Cache, Environment, Progress, StoreOutcome, Token};
-use d365_openapi_core::{Metadata, Options, OutputFormat, SpecVersion};
+use d365_openapi_core::{Metadata, Options, OutputFormat, Platform, SpecVersion};
 
 use crate::model::format_time;
 
@@ -82,12 +82,18 @@ pub fn download(
             t
         }
     };
-    emit(Event::Status(
-        "Requesting metadata from D365FO (this can take a minute)…".into(),
-    ));
-    let data = d365_fetch::download_metadata(&env.url, &token.access_token, cancel, |p| {
-        emit(Event::Progress(p))
-    })
+    let platform = Platform::detect(&env.url);
+    emit(Event::Status(format!(
+        "Requesting metadata from {} (this can take a minute)…",
+        platform.short_name()
+    )));
+    let data = d365_fetch::download_metadata(
+        &env.url,
+        platform.data_path(),
+        &token.access_token,
+        cancel,
+        |p| emit(Event::Progress(p)),
+    )
     .map_err(|e| e.to_string())?;
     emit(Event::Status("Saving…".into()));
     let outcome = cache.store(&env.url, &data).map_err(|e| e.to_string())?;
@@ -100,7 +106,10 @@ pub fn download(
     Ok(match outcome {
         StoreOutcome::New => format!("Downloaded and saved metadata: {n} entities."),
         StoreOutcome::Updated => {
-            format!("Metadata changed in D365FO. Saved the new version: {n} entities.")
+            format!(
+                "Metadata changed in {}. Saved the new version: {n} entities.",
+                platform.short_name()
+            )
         }
         StoreOutcome::Unchanged => "No changes. The saved metadata is already up to date.".into(),
     })
@@ -173,10 +182,12 @@ pub fn preview(
 
 /// Spec options for an environment and the saved output choices.
 pub fn base_options(env: Option<&Environment>, output: &crate::model::OutputOptions) -> Options {
+    let platform = env.map_or_else(Platform::default, |e| Platform::detect(&e.url));
     Options {
         version: SpecVersion::OpenApi30,
+        platform,
         title: match env {
-            Some(env) => format!("D365FO OData API ({})", env.name),
+            Some(env) => format!("{} OData API ({})", platform.short_name(), env.name),
             None => Options::default().title,
         },
         server_url: if output.include_server_url {

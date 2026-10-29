@@ -161,7 +161,7 @@ impl App {
                         b.sign_in_url = None;
                         b.status = match p {
                             Progress::Connecting => {
-                                "Waiting for D365FO to send the metadata…".into()
+                                "Waiting for the server to send the metadata…".into()
                             }
                             Progress::Downloading { .. } => "Downloading metadata…".into(),
                             Progress::Done { .. } => "Download complete.".into(),
@@ -346,7 +346,7 @@ impl App {
             self.select_environment(i, ui.ctx());
         }
         if self.settings.environments.is_empty() {
-            ui.label(RichText::new("Add your D365FO environment to get started.").weak());
+            ui.label(RichText::new("Add your Dynamics 365 environment (Finance & Operations or Dataverse) to get started.").weak());
         }
         ui.add_space(4.0);
         ui.horizontal(|ui| {
@@ -408,7 +408,7 @@ impl App {
                 if ui
                     .add_enabled(!busy, egui::Button::new("🔄 Check for updates"))
                     .on_hover_text(
-                        "Download again and replace the saved copy only if D365FO has changed",
+                        "Download again and replace the saved copy only if the metadata has changed",
                     )
                     .clicked()
                 {
@@ -720,7 +720,7 @@ impl App {
                     ui.add(egui::TextEdit::singleline(&mut ed.env.name).hint_text("e.g. UAT").desired_width(340.0));
                     ui.end_row();
                     ui.label("Environment URL");
-                    ui.add(egui::TextEdit::singleline(&mut ed.env.url).hint_text("https://contoso-uat.sandbox.operations.dynamics.com").desired_width(340.0));
+                    ui.add(egui::TextEdit::singleline(&mut ed.env.url).hint_text("https://contoso.operations.dynamics.com or https://contoso.crm.dynamics.com").desired_width(340.0));
                     ui.end_row();
                     ui.label("Tenant ID");
                     ui.add(egui::TextEdit::singleline(&mut ed.env.tenant).hint_text("Optional: tenant ID or contoso.onmicrosoft.com").desired_width(340.0));
@@ -888,7 +888,7 @@ impl eframe::App for App {
 
         egui::Panel::top("toolbar").show(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.heading("D365FO → OpenAPI");
+                ui.heading("D365 → OpenAPI");
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if ui
                         .add_enabled(self.busy.is_none(), egui::Button::new("⚙ Settings"))

@@ -7,7 +7,7 @@ mod jobs;
 fn main() -> eframe::Result {
     let options = eframe::NativeOptions {
         viewport: eframe::egui::ViewportBuilder::default()
-            .with_title("D365FO → OpenAPI")
+            .with_title("D365 → OpenAPI")
             .with_inner_size([1200.0, 760.0])
             .with_min_inner_size([900.0, 560.0]),
         // OpenGL (glow) by default: the wgpu renderer flickered on hover on some

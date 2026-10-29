@@ -1,12 +1,12 @@
 //! Builds an OpenAPI 3.0 / 3.1 or Swagger 2.0 document for a chosen set of
-//! D365FO entity sets.
+//! Dynamics 365 entity sets.
 
 use std::collections::{BTreeSet, VecDeque};
 
 use serde_json::{Map, Value, json};
 
-use crate::Error;
 use crate::edm::*;
+use crate::{Error, Platform};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SpecVersion {
@@ -40,6 +40,8 @@ impl SpecVersion {
 pub struct Options {
     pub version: SpecVersion,
     pub title: String,
+    /// Decides the service root path and platform-specific parameters.
+    pub platform: Platform,
     /// Environment URL, e.g. `https://contoso.operations.dynamics.com`.
     pub server_url: Option<String>,
     /// Emit paths for bound actions and functions.
@@ -52,6 +54,7 @@ impl Default for Options {
     fn default() -> Self {
         Self {
             version: SpecVersion::OpenApi30,
+            platform: Platform::FinanceOperations,
             title: "Dynamics 365 Finance & Operations OData API".into(),
             server_url: None,
             include_operations: true,
@@ -59,8 +62,6 @@ impl Default for Options {
         }
     }
 }
-
-const DATA_PATH: &str = "/data";
 
 /// Generates a spec covering only the named entity sets.
 pub fn generate(md: &Metadata, entity_sets: &[&str], opts: &Options) -> Result<Value, Error> {
@@ -124,7 +125,7 @@ impl<'a> Gen<'a> {
         let info = json!({
             "title": self.opts.title,
             "version": "1.0",
-            "description": "Generated from Dynamics 365 Finance & Operations OData $metadata.",
+            "description": format!("Generated from Dynamics 365 {} OData $metadata.", self.opts.platform.label()),
         });
 
         let doc = match self.v {
@@ -160,7 +161,7 @@ impl<'a> Gen<'a> {
                     Some(url) => json!({ "url": url.trim_end_matches('/') }),
                     None => json!({
                         "url": "https://{environment}",
-                        "variables": { "environment": { "default": "your-environment.operations.dynamics.com" } }
+                        "variables": { "environment": { "default": self.opts.platform.example_host() } }
                     }),
                 };
                 json!({
@@ -198,13 +199,16 @@ impl<'a> Gen<'a> {
         let collection = self.collection_schema(&ty.qualified_name());
         self.schemas.insert(collection_name.clone(), collection);
         let tag = json!([set.name]);
-        let cross_company = self.param(
-            "cross-company",
-            "query",
-            json!({ "type": "boolean" }),
-            false,
-            "Return data from all legal entities instead of only the default company.",
-        );
+        // Only Finance & Operations has legal entities.
+        let cross_company = (self.opts.platform == Platform::FinanceOperations).then(|| {
+            self.param(
+                "cross-company",
+                "query",
+                json!({ "type": "boolean" }),
+                false,
+                "Return data from all legal entities instead of only the default company.",
+            )
+        });
 
         // Collection: list + create.
         let mut list_params = vec![
@@ -258,9 +262,9 @@ impl<'a> Gen<'a> {
                 "Include the total count.",
             ),
         ];
-        list_params.push(cross_company.clone());
+        list_params.extend(cross_company.clone());
 
-        let coll_path = format!("{DATA_PATH}/{}", set.name);
+        let coll_path = format!("{}/{}", self.opts.platform.data_path(), set.name);
         let mut coll = Map::new();
         coll.insert(
             "get".into(),
@@ -333,7 +337,7 @@ impl<'a> Gen<'a> {
                 false,
                 "Navigation properties to expand.",
             ));
-            get_params.push(cross_company.clone());
+            get_params.extend(cross_company.clone());
             let mut item = Map::new();
             item.insert(
                 "get".into(),
@@ -347,7 +351,7 @@ impl<'a> Gen<'a> {
                 ),
             );
             let mut write_params = key_params.clone();
-            write_params.push(cross_company.clone());
+            write_params.extend(cross_company.clone());
             item.insert(
                 "patch".into(),
                 self.operation(
