@@ -210,6 +210,7 @@ struct InitData {
     cache_dir: String,
     default_cache_dir: String,
     settings_path: String,
+    version: &'static str,
 }
 
 #[tauri::command]
@@ -222,6 +223,7 @@ fn init(shared: State<'_, Shared>) -> InitData {
         cache_dir: inner.cache.dir().display().to_string(),
         default_cache_dir: Settings::default_cache_dir().display().to_string(),
         settings_path: inner.settings_path.display().to_string(),
+        version: env!("CARGO_PKG_VERSION"),
     }
 }
 
@@ -477,6 +479,9 @@ fn main() {
     tauri::Builder::default()
         .setup(move |app| {
             app.manage(shared);
+            if let Some(window) = app.get_webview_window("main") {
+                window.set_title(concat!("D365 → OpenAPI ", env!("CARGO_PKG_VERSION")))?;
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

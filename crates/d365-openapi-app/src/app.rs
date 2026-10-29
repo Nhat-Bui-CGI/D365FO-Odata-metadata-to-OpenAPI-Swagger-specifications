@@ -829,6 +829,7 @@ impl App {
             }
             ui.add_space(6.0);
             ui.label(RichText::new(format!("Settings file: {}", self.settings_path.display())).small().weak());
+            ui.label(RichText::new(concat!("Version ", env!("CARGO_PKG_VERSION"))).small().weak());
             if let Some(e) = &ed.error {
                 ui.colored_label(Color32::from_rgb(210, 80, 70), e);
             }
@@ -893,6 +894,7 @@ impl eframe::App for App {
         egui::Panel::top("toolbar").show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.heading("D365 → OpenAPI");
+                ui.label(RichText::new(concat!("v", env!("CARGO_PKG_VERSION"))).weak());
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if ui
                         .add_enabled(self.busy.is_none(), egui::Button::new("⚙ Settings"))

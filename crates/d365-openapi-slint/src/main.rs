@@ -570,6 +570,7 @@ fn main() -> Result<(), slint::PlatformError> {
     ui.set_environments(ModelRc::from(env_model.clone()));
     ui.set_default_cache_dir(Settings::default_cache_dir().display().to_string().into());
     ui.set_settings_path(settings_path.display().to_string().into());
+    ui.set_version(env!("CARGO_PKG_VERSION").into());
 
     let last = state
         .last_environment

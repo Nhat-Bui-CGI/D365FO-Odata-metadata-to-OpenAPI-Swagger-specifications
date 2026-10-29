@@ -53,7 +53,8 @@ component Dialog inherits Rectangle {
 }
 
 export component AppWindow inherits Window {
-    title: "D365 → OpenAPI";
+    in property <string> version;
+    title: "D365 → OpenAPI " + root.version;
     icon: @image-url("../../d365-openapi-tauri/icons/128x128.png");
     preferred-width: 1200px;
     preferred-height: 760px;
@@ -149,6 +150,11 @@ export component AppWindow inherits Window {
                             text: "D365 → OpenAPI";
                             font-size: 18px;
                             font-weight: 700;
+                            vertical-alignment: center;
+                        }
+                        Text {
+                            text: " v" + root.version;
+                            color: Palette.foreground.transparentize(0.45);
                             vertical-alignment: center;
                         }
                         Rectangle { }
@@ -477,7 +483,7 @@ export component AppWindow inherits Window {
                 clicked => { root.browse-cache-dir(); }
             }
         }
-        Muted { text: "Default: " + root.default-cache-dir + "\nSaved metadata is moved to the new folder.\nSettings file: " + root.settings-path; }
+        Muted { text: "Default: " + root.default-cache-dir + "\nSaved metadata is moved to the new folder.\nSettings file: " + root.settings-path + "\nVersion " + root.version; }
         if root.settings-error != "": Text {
             text: root.settings-error;
             color: #e5484d;
