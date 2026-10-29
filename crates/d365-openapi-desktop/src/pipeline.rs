@@ -300,7 +300,10 @@ mod tests {
             base_options: base_options(None, &output),
         };
         let msg = export(&|_| {}, job).unwrap();
-        assert!(msg.starts_with("Exported 3 file(s) for 2 entities"), "{msg}");
+        assert!(
+            msg.starts_with("Exported 3 file(s) for 2 entities"),
+            "{msg}"
+        );
 
         let paths = |name: &str| -> Vec<String> {
             let text = std::fs::read_to_string(dir.join(name)).unwrap();
@@ -310,7 +313,10 @@ mod tests {
         let all = paths("d365fo-api.openapi-3.0.json");
         let one = paths("CustomersV3.openapi-3.0.json");
         assert!(all.iter().any(|p| p.contains("SalesOrderLines")));
-        assert!(one.iter().all(|p| p.starts_with("/data/CustomersV3")), "{one:?}");
+        assert!(
+            one.iter().all(|p| p.starts_with("/data/CustomersV3")),
+            "{one:?}"
+        );
         std::fs::remove_dir_all(dir).unwrap();
     }
 }
