@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.1.2 (2026-10-29)
 
 - Fix: after the environment refused a sign-in (401/403), every retry reused
   that sign-in until the app was restarted. The app now forgets it and asks
