@@ -411,7 +411,7 @@ let defaultCacheDir = "";
 $("open-settings").onclick = async () => {
   const init = await invoke("init");
   $("cache-dir").value = init.cacheDir;
-  $("settings-path").textContent = "Settings file: " + init.settingsPath;
+  $("settings-path").textContent = `Settings file: ${init.settingsPath} · Version ${init.version}`;
   $("settings-error").textContent = "";
   $("settings-dialog").showModal();
 };
@@ -439,6 +439,7 @@ $("settings-form").addEventListener("submit", async (ev) => {
   const init = await invoke("init");
   state.environments = init.environments;
   state.output = init.output;
+  $("version").textContent = "v" + init.version;
   defaultCacheDir = init.defaultCacheDir;
   document.querySelectorAll("[data-opt]").forEach((cb) => (cb.checked = !!state.output[cb.dataset.opt]));
   $("file-name").value = state.output.file_name;
