@@ -146,7 +146,15 @@ cargo test
 
 ### Releases
 
-Publishing a GitHub release runs `.github/workflows/release.yml`, which builds
+Releases are automatic. When a change to the version in
+`crates/d365-openapi-app/Cargo.toml` is merged to `main`,
+`.github/workflows/auto-release.yml` publishes a release with that version as
+its tag and the matching `CHANGELOG.md` section as notes. Then it starts the
+binaries workflow below. To bump the version, change it in every
+`crates/*/Cargo.toml` and in `crates/d365-openapi-tauri/tauri.conf.json`, run
+`cargo update -w`, and add a dated section to `CHANGELOG.md`.
+
+Publishing a GitHub release by hand also runs `.github/workflows/release.yml`, which builds
 all three apps on Windows and macOS and attaches to the release:
 
 - `d365fo-openapi-{egui,tauri,slint}-<version>-windows-x64.zip`
