@@ -72,6 +72,7 @@ pub struct App {
 
 impl App {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+        cc.egui_ctx.set_theme(egui::Theme::Light);
         let settings_path = Settings::default_path();
         let (settings, settings_error) = match Settings::load(&settings_path) {
             Ok(s) => (s, None),
